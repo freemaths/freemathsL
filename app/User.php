@@ -39,6 +39,11 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     	return $this->hasMany(Log::class);
     }
     
+    public function log()
+    {
+    	return Log::where('user_id',$this->id)->orderBy('id','asc')->get();
+    }
+    
     public function tutors()
     {
     	return $this->hasMany(Tutor::class);
@@ -48,6 +53,18 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     {
     	if ($all && $this->email == 'ed@darnell.org.uk') return DB::table('users')->pluck('id');
     	return DB::table('tutors')->where('email', $this->email)->pluck('user_id');
+    }
+    
+    public function isTutor()
+    {
+    	if (DB::table('tutors')->where(['email'=>$this->email])->first()) return true;
+    	else return false;
+    }
+    
+    public function isAdmin()
+    {
+    	if ($this->id == 1) return true;
+    	else return false;
     }
     
     public function student($uid)

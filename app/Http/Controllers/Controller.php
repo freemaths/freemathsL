@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Cookie;
 use Password;
 use DB;
 use Log;
+use Illuminate\Support\Facades\Crypt;
 use App\User;
 use App\Test;
 use App\Question;
@@ -19,22 +20,56 @@ use App\Log as StatLog;
 class Controller extends BaseController
 {
 	private $user=null;
+	
 	public function __construct()
 	{
 		//$this->middleware('guest', ['except' => 'logout']);
 	}
 	
+	private function auth($request,$object=false)
+	{
+		if ($request->cookie('token') && $token=json_decode(Crypt::decrypt($request->cookie('token')))) {
+			if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id])->first())
+			{
+				Log::info('auth',['uid'=>$user->id,'cookie'=>$token->time,'time'=>time(),'diff'=>time()-$token->time]);
+				if ($object) return $user; // even if tokens don't match
+				else if ($user->remember_token == $token->token && time()-$token->time < 30*60) return $this->ret_user($user,$request->ip());
+				else return true;
+			}
+		}
+		else return null;
+	}
+	
+	public function students(Request $request)
+	{
+		$log=[];
+		$students=[];
+		if($request->ajax()){
+			if ($students=$request->user()->students($request->only('all')))
+			{
+				Log::debug('ajax_stats:',['students'=>$students]);
+				if ($request->only('last')) $log=StatLog::whereIn('user_id',$students)->where('id','>',$request->only('last'))->orderBy('id','asc')->get();
+				else
+				{
+					$log=StatLog::whereIn('user_id',$students)->orderBy('id','asc')->get();
+					$users=User::whereIn('id',$students)->select('id','name')->get();
+				}
+			}
+			return response()->json(['log'=>$log,'users'=>$users]);
+		}
+	}
+	
 	public function log_event(Request $request)
 	{
 		// 'cookie'=>$request->cookie('token'), - cookie not working
-		Log::info('log_event',['uid'=>$request->user()->id,'paper'=>$request->paper,'question'=>$request->question,'event'=>$request->event]);
+		Log::info('log_event',['uid'=>$request->user()->id,'paper'=>$request->log['paper'],'question'=>$request->log['question'],'event'=>$request->log['event']]);
 		$log=$request->user()->logs()->create([
-				'event'=>$request->event,
-				'paper'=> $request->paper,
-				'question'=>$request->question,
-				'answer'=>$request->has('answer')?$request->answer:'',
-				'comment'=>$request->has('comment')?$request->comment:'',
-				'variables'=>$request->has('vars')?json_encode($request->vars):''
+				'event'=>$request->log['event'],
+				'paper'=> $request->log['paper'],
+				'question'=>$request->log['question'],
+				'answer'=>@$request->log['answer']?:'',
+				'comment'=>@$request->log['comment']?:'',
+				'variables'=>@$request->log['vars']?json_encode($request->log['vars']):''
 		]);
 		return response()->json(['log'=>$log]);
 	}
@@ -60,7 +95,7 @@ class Controller extends BaseController
 		$questions=Question::where('next_id',0)->get();
 		$qmap=DB::table('question_test')->get();
 		$help = Help::where('next_id',0)->get();
-		return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help]);
+		return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help,'user'=>$this->auth($request)]);
 	}
 	
 	
@@ -74,7 +109,8 @@ class Controller extends BaseController
 			$user = User::where('email',$request->email)->first();
 			if ($user && Hash::check($request->password, $user->password))
 			{
-				return $this->ret_user($user);
+				$resp=$this->ret_user($user,$request->ip(),true);
+				return response()->json($resp)->cookie(new Cookie ('token',$resp['token'],'+30 days'));;
 			}
 			else
 			{
@@ -84,13 +120,40 @@ class Controller extends BaseController
 		}
 	}
 	
-	public function ret_user($user,$remeber=false)
+	public function password(Request $request)
 	{
-		Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email]);
-		$user->remember_token=$user->id.'_'.base64_encode(str_random(40));
-		$user->save();
-		$log=StatLog::where('user_id',$user->id)->orderBy('id','asc')->get();
-		return response()->json(['uid'=>$user->id,'name'=>$user->name,'log'=>$log,'isAdmin'=>$user->id==1,'token'=>$user->remember_token]); //->cookie(new Cookie ('token',$user->remember_token,10));
+		$this->validate($request, [
+				'password' => 'required'
+		]);
+		if ($request->ajax()) {
+			$user=$this->auth($request,true);
+			if ($user && Hash::check($request->password, $user->password))
+			{
+				$resp=$this->ret_user($user,$request->ip(),true);
+				return response()->json($resp)->cookie(new Cookie ('token',$resp['token'],'+30 days'));
+			}
+			else
+			{
+				Log::debug('password - fail',['email'=>$user?$user->email:null]);
+				return response()->json(['password'=>'These credentials do not match our records.'],401);
+			}
+		}
+	}
+	
+	public function logout(Request $request) {
+		return response()->json('logged out')->cookie(new Cookie ('token','',0));
+	}
+	
+	public function ret_user($user,$ip,$set=false)
+	{
+		if ($set)
+		{
+			$user->remember_token=base64_encode(str_random(40));
+			$user->save();
+			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember_token'=>$user->remember_token,'ip'=>$ip]);
+		}
+		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'ip'=>$ip]));
+		return (['uid'=>$user->id,'name'=>$user->name,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
