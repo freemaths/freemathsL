@@ -23,7 +23,7 @@ $app = new Laravel\Lumen\Application(
     realpath(__DIR__.'/../')
 );
 
-$app->withFacades();
+$app->withFacades(true,['Illuminate\Support\Facades\Password' => 'Password']);
 $app->withEloquent();
 
 /*
@@ -78,11 +78,15 @@ $app->routeMiddleware([
 */
 $app->configure('app');
 $app->configure('mail');
+// alias edited into Application.php: 'Illuminate\Contracts\Mail\Mailer' => 'mailer',
+// also translation to make markdown work - see
+// vendor\laravel\lumen-framework\src\Application.php
 $app->configure('auth');
 $app->register(App\Providers\AppServiceProvider::class);
 $app->register(\Illuminate\Mail\MailServiceProvider::class);
 $app->register(\Illuminate\Notifications\NotificationServiceProvider::class);
 $app->register(\Illuminate\Auth\Passwords\PasswordResetServiceProvider::class);
+//$app->register(\Illuminate\Translation\TranslationServiceProvider::class);
 $app->register(App\Providers\AuthServiceProvider::class);
 // $app->register(App\Providers\EventServiceProvider::class);
 

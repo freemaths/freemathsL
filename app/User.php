@@ -49,6 +49,19 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     	return $this->hasMany(Tutor::class);
     }
     
+    public function tutor_details()
+    {
+    	$tutors=[];
+    	foreach (DB::table('tutors')->where(['user_id'=>$this->id])->get() as $tutor) {
+    		if ($user=DB::table('users')->where(['email'=>$tutor->email])->first())
+    		{
+    			$tutors[]=['name'=>$user->name,'email'=>$user->email];
+    		}
+    		else $tutors[]=['email'=>$tutor->email];
+    	}
+    	return $tutors;
+    }
+    
     public function students($all = false)
     {
     	if ($all && $this->email == 'ed@darnell.org.uk') return DB::table('users')->pluck('id');

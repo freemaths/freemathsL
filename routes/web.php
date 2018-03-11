@@ -25,6 +25,7 @@ $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 	$router->post('register', 'Controller@register');
 	$router->post('forgot', 'Controller@forgot');
 	$router->post('reset', 'Controller@reset');
+	$router->post('contact', 'Controller@contact');
 });
 
 $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () use ($router) {
@@ -33,4 +34,5 @@ $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () us
 	$router->post('saveQ', 'Controller@saveQ');
 	$router->post('help', 'Controller@help');
 	$router->post('marking', 'Controller@marking');
+	$router->post('tutor', 'Controller@tutor');
 });

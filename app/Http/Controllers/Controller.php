@@ -9,11 +9,14 @@ use Symfony\Component\HttpFoundation\Cookie;
 use Password;
 use DB;
 use Log;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\Contact;
 use Illuminate\Support\Facades\Crypt;
 use App\User;
 use App\Test;
 use App\Question;
 use App\Help;
+use App\Tutor;
 use App\Log as StatLog;
 //use App\Notifications\ResetPassword;
 
@@ -129,6 +132,7 @@ class Controller extends BaseController
 			$user=$this->auth($request,true);
 			if ($user && Hash::check($request->password, $user->password))
 			{
+				if ($request->auth) return response()->json(['auth'=>true]);
 				$resp=$this->ret_user($user,$request->ip(),true);
 				return response()->json($resp)->cookie(new Cookie ('token',$resp['token'],'+30 days'));
 			}
@@ -153,7 +157,7 @@ class Controller extends BaseController
 			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember_token'=>$user->remember_token,'ip'=>$ip]);
 		}
 		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'ip'=>$ip]));
-		return (['uid'=>$user->id,'name'=>$user->name,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'isTutor'=>$user->isTutor(),'token'=>$token]);
+		return (['uid'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
@@ -169,16 +173,18 @@ class Controller extends BaseController
 		$this->validate($request, [
 				'email' => 'required',
 				'password' => 'required|min:6',
-				'password_confirmation' => 'same:password'
+				'password_confirmation' => 'required|same:password'
 		]);
 		
 		$ret = Password::reset($request->only('email','password','password_confirmation','token'),function($u,$p){$this->set_password($u,$p);});
 		Log::debug('reset',['email'=>$request->email,'ret'=>$ret]);
 		//$ret=$user->notify(new ResetPassword($user));
 		
-		if ($ret == 'passwords.reset') return $this->ret_user($this->user); //user set by set_password
-		return response()->json(['error'=>$ret],401);
-		//return $this->login($request);
+		if ($ret == 'passwords.reset') {
+			$resp=$this->ret_user($this->user,$request->ip(),true);
+			return response()->json($resp)->cookie(new Cookie ('token',$resp['token'],'+30 days'));
+		}
+		else return response()->json(['error'=>"password reset expired or does not match email"],401);
 	}
 	
 	public function marking(Request $request)
@@ -209,11 +215,7 @@ class Controller extends BaseController
 			$this->validate($request,[
 					'email' => 'required|email|max:255|exists:users',
 			]);
-			//$user=User::where('email',$request->email)->first();
 			$ret = Password::sendResetLink(['email'=>$request->email]);
-
-			//$ret=$user->notify(new ResetPassword($user));
-
 			return response()->json($ret);
 		}
 	}
@@ -264,4 +266,75 @@ class Controller extends BaseController
 			}
 		}
 	}
+	
+	
+	public function tutor(Request $request)
+	{
+		$added=0;$removed=0;
+		Log::debug('tutor',['tutor'=>$request->only('tutor'),'remove'=>$request->only('remove')]);
+		if (!$request->remove && $request->tutor[1] == '' && $request->tutor[2] == '' && $request->tutor[3] == '') {
+			return response()->json(['tutor.1'=>'Specify at least one tutor to add'],422);
+		}
+		if ($request->has('tutor'))
+		{
+			$this->validate($request, [
+					'tutor.1' => 'email',
+					'tutor.2' => 'email',
+					'tutor.3' => 'email',
+			]);
+			$errors=[];
+			//TODO - add as custom rule to validator
+			for ($i=1; $i<=3; $i++) if (($tutor=$request->tutor[$i]) != '')
+			{
+				if ($tutor == $request->user()->email)
+				{
+					$errors["tutor.$i"]="You can't add yourself as a tutor";
+				}
+				else if ($t=Tutor::where(['email'=>$tutor,'user_id'=>$request->user()->id])->first())
+				{
+					Log::debug('tutor',['t'=>$t,'user'=>$request->user()]);
+					$errors["tutor.$i"]='Tutor already added';
+				}
+			}
+			if (count($errors) > 0) return response()->json($errors,422);
+			else for ($i=1; $i<=3; $i++) if (($tutor=$request->tutor[$i]) != '')
+			{
+				if ($request->user()->tutors()->create(['email'=>$tutor]))
+					$added++;
+					else return response()->json(['error'=>'Internal Database Error','tutors'=>Tutor::where('user_id', $request->user()->id)->get()],500);
+			}
+			
+		}
+		if ($request->has('remove')) 
+			if ($request->user()->tutors()->whereIn('email',$request->remove)->delete()) $removed=count($request->remove);
+
+		return response()->json(['added'=>$added,'removed'=>$removed,'tutors'=>$request->user()->tutor_details()]);
+	}	
+	
+	public function contact(Request $request)
+	{
+		if ($user=$this->auth($request,true))
+		{
+			$this->validate($request, [
+					'message' => 'required'
+			]);
+			$email = $user->email;
+			Mail::to($user)->send(new Contact($user->name,$user->name,$request->message));
+			//TODO
+		}
+		else
+		{
+			$this->validate($request, [
+					'name' => 'required',
+					'email' => 'email|required',
+					'message' => 'required'
+			]);
+			$email = $request->email;
+			Mail::to('ed@freemaths.uk')->replyTo($request->email,$request->name)->send(new Contact('FreeMaths',$request->name,$request->message));
+		}
+		return response()->json(['sent'=>true]);
+	}
+	
+	
+	
 }
