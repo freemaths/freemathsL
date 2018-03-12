@@ -5,11 +5,11 @@ namespace App;
 use Illuminate\Database\Eloquent\Model;
 use Log;
 
-class Marking extends Model
+class Message extends Model
 {
 	public $timestamps = false;
-	protected $fillable = ['json'];	
-
+	protected $fillable = ['json','to_uid','from_uid'];	
+/*
 	public function to()
 	{
 		return $this->belongsTo('App\User');
@@ -19,5 +19,5 @@ class Marking extends Model
 	{
 		return $this->belongsTo('App\User');
 	}
-	
+	*/
 }

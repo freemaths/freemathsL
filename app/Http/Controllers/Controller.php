@@ -11,12 +11,14 @@ use DB;
 use Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\Contact;
+use App\Mail\ContactCopy;
 use Illuminate\Support\Facades\Crypt;
 use App\User;
 use App\Test;
 use App\Question;
 use App\Help;
 use App\Tutor;
+use App\Message;
 use App\Log as StatLog;
 //use App\Notifications\ResetPassword;
 
@@ -31,10 +33,12 @@ class Controller extends BaseController
 	
 	private function auth($request,$object=false)
 	{
-		if ($request->cookie('token') && $token=json_decode(Crypt::decrypt($request->cookie('token')))) {
+		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token'); //laravel bug?
+		if (!$FMtoken) $FMtoken=$request->cookie('FM-Token'); // may change this not to use token
+		Log::info('auth',['token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
+		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
 			if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id])->first())
 			{
-				Log::info('auth',['uid'=>$user->id,'cookie'=>$token->time,'time'=>time(),'diff'=>time()-$token->time]);
 				if ($object) return $user; // even if tokens don't match
 				else if ($user->remember_token == $token->token && time()-$token->time < 30*60) return $this->ret_user($user,$request->ip());
 				else return true;
@@ -64,7 +68,6 @@ class Controller extends BaseController
 	
 	public function log_event(Request $request)
 	{
-		// 'cookie'=>$request->cookie('token'), - cookie not working
 		Log::info('log_event',['uid'=>$request->user()->id,'paper'=>$request->log['paper'],'question'=>$request->log['question'],'event'=>$request->log['event']]);
 		$log=$request->user()->logs()->create([
 				'event'=>$request->log['event'],
@@ -113,7 +116,7 @@ class Controller extends BaseController
 			if ($user && Hash::check($request->password, $user->password))
 			{
 				$resp=$this->ret_user($user,$request->ip(),true);
-				return response()->json($resp)->cookie(new Cookie ('token',$resp['token'],'+30 days'));;
+				return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));;
 			}
 			else
 			{
@@ -134,7 +137,7 @@ class Controller extends BaseController
 			{
 				if ($request->auth) return response()->json(['auth'=>true]);
 				$resp=$this->ret_user($user,$request->ip(),true);
-				return response()->json($resp)->cookie(new Cookie ('token',$resp['token'],'+30 days'));
+				return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 			}
 			else
 			{
@@ -145,7 +148,7 @@ class Controller extends BaseController
 	}
 	
 	public function logout(Request $request) {
-		return response()->json('logged out')->cookie(new Cookie ('token','',0));
+		return response()->json('logged out')->cookie(new Cookie ('FM-Token','',0));
 	}
 	
 	public function ret_user($user,$ip,$set=false)
@@ -182,7 +185,7 @@ class Controller extends BaseController
 		
 		if ($ret == 'passwords.reset') {
 			$resp=$this->ret_user($this->user,$request->ip(),true);
-			return response()->json($resp)->cookie(new Cookie ('token',$resp['token'],'+30 days'));
+			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else return response()->json(['error'=>"password reset expired or does not match email"],401);
 	}
@@ -313,26 +316,32 @@ class Controller extends BaseController
 	
 	public function contact(Request $request)
 	{
+		$message=new Message;
+		$message->to_uid=1; // change when tutors supported
 		if ($user=$this->auth($request,true))
 		{
+			Log::debug('contact',['user'=>$request->user()->email]);
 			$this->validate($request, [
 					'message' => 'required'
 			]);
-			$email = $user->email;
-			Mail::to($user)->send(new Contact($user->name,$user->name,$request->message));
-			//TODO
+			$message->from_uid=$user->id;
 		}
 		else
 		{
+			Log::debug('contact',['anon'=>$request->email]);
 			$this->validate($request, [
 					'name' => 'required',
 					'email' => 'email|required',
 					'message' => 'required'
 			]);
-			$email = $request->email;
-			Mail::to('ed@freemaths.uk')->replyTo($request->email,$request->name)->send(new Contact('FreeMaths',$request->name,$request->message));
+			$message->from_uid=0;
 		}
-		return response()->json(['sent'=>true]);
+		$message->json=json_encode(['from'=>$user?$user->id:['name'=>$request->name,'email'=>$request->email],'message'=>$request->message,'maths'=>$request->only('maths'),'ts'=>time()]);
+		$message->save();
+		$token=Crypt::encrypt(json_encode(['id'=>$message->id]));
+		//Mail::to($user?$user:$request->email)->send(new ContactCopy('Freemaths',$user->name,$request->message));
+		Mail::to('ed@freemaths.uk')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token));
+		return response()->json(['sent'=>$token]);
 	}
 	
 	

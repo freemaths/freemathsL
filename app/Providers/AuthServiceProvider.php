@@ -33,7 +33,9 @@ class AuthServiceProvider extends ServiceProvider
         // the User instance via an API token or any other method necessary.
 
         $this->app['auth']->viaRequest('api', function ($request) {
-        	if ($request->input('token') && $token=json_decode(Crypt::decrypt($request->input('token')))) {
+        	$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
+        	Log::debug('auth',['FM-Token'=>$FMtoken]);
+        	if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
         		if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
         		{
         			return $user;
