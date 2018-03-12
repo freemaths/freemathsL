@@ -31,7 +31,7 @@ class Controller extends BaseController
 		//$this->middleware('guest', ['except' => 'logout']);
 	}
 	
-	private function auth($request,$object=false)
+	private function auth($request,$object=false,$expire=false)
 	{
 		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token'); //laravel bug?
 		if (!$FMtoken) $FMtoken=$request->cookie('FM-Token'); // may change this not to use token
@@ -39,9 +39,15 @@ class Controller extends BaseController
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
 			if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id])->first())
 			{
-				if ($object) return $user; // even if tokens don't match
-				else if ($user->remember_token == $token->token && time()-$token->time < 30*60) return $this->ret_user($user,$request->ip());
-				else return true;
+				if ($object)
+				{
+					if ($expire && !($user->remember_token == $token->token && time()-$token->time < 30*60)) return null;
+					else return $user;
+				}
+				else if (($user->remember_token == $token->token && time()-$token->time < 30*60)) {
+					return $this->ret_user($user,$request->ip());
+				}
+				else return true; // React will prompt for password
 			}
 		}
 		else return null;
@@ -68,7 +74,7 @@ class Controller extends BaseController
 	
 	public function log_event(Request $request)
 	{
-		Log::info('log_event',['uid'=>$request->user()->id,'paper'=>$request->log['paper'],'question'=>$request->log['question'],'event'=>$request->log['event']]);
+		Log::info('log_event',['id'=>$request->user()->id,'paper'=>$request->log['paper'],'question'=>$request->log['question'],'event'=>$request->log['event']]);
 		$log=$request->user()->logs()->create([
 				'event'=>$request->log['event'],
 				'paper'=> $request->log['paper'],
@@ -82,7 +88,7 @@ class Controller extends BaseController
 	
 	public function help(Request $request)
 	{
-		Log::info('log_help',['uid'=>$request->user()->id,'topic'=>$request->topic]);
+		Log::info('log_help',['id'=>$request->user()->id,'topic'=>$request->topic]);
 		$row=$request->user()->logs()->create([
 				'event'=>'Help',
 				'paper'=> '',
@@ -160,7 +166,7 @@ class Controller extends BaseController
 			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember_token'=>$user->remember_token,'ip'=>$ip]);
 		}
 		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'ip'=>$ip]));
-		return (['uid'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
+		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
@@ -318,9 +324,9 @@ class Controller extends BaseController
 	{
 		$message=new Message;
 		$message->to_uid=1; // change when tutors supported
-		if ($user=$this->auth($request,true))
+		if ($user=$this->auth($request,true,true))
 		{
-			Log::debug('contact',['user'=>$request->user()->email]);
+			Log::debug('contact',['user'=>$user->id]);
 			$this->validate($request, [
 					'message' => 'required'
 			]);
@@ -334,16 +340,26 @@ class Controller extends BaseController
 					'email' => 'email|required',
 					'message' => 'required'
 			]);
-			$message->from_uid=0;
+			if ($user=User::where('email',$request->email)->first()) $message->from_uid=$user->id; // if known email
+			else $message->from_uid=0;
 		}
-		$message->json=json_encode(['from'=>$user?$user->id:['name'=>$request->name,'email'=>$request->email],'message'=>$request->message,'maths'=>$request->only('maths'),'ts'=>time()]);
+		$message->json=json_encode(['to'=>['name'=>'Ed Darnell','id'=>1],'from'=>$user?['name'=>$user->name,'id'=>$user->id]:['name'=>$request->name,'email'=>$request->email],'message'=>$request->message,'maths'=>$request->only('maths'),'ts'=>time()]);
 		$message->save();
 		$token=Crypt::encrypt(json_encode(['id'=>$message->id]));
 		//Mail::to($user?$user:$request->email)->send(new ContactCopy('Freemaths',$user->name,$request->message));
-		Mail::to('ed@freemaths.uk')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token));
+		Mail::to('epdarnell@gmail.com')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token));
 		return response()->json(['sent'=>$token]);
 	}
 	
+	public function mail(Request $request)
+	{
+		if ($id=json_decode(Crypt::decrypt($request->token)))
+		{
+			$message=Message::find($id->id);
+			return response($message->json,200)->header('Content-Type','application/json');
+		}
+		else return response()->json(['error'=>'Invalid mail token'],422);
+	}
 	
 	
 }
