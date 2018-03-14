@@ -22,8 +22,9 @@ try {
 $app = new Laravel\Lumen\Application(
     realpath(__DIR__.'/../')
 );
-
-$app->withFacades(true,['Illuminate\Support\Facades\Password' => 'Password']);
+$app->configure('filesystems');
+$app->withFacades(true,['Illuminate\Support\Facades\Password'=>'Password',
+		'Illuminate\Support\Facades\Storage'=>'Storage']);
 $app->withEloquent();
 
 /*
@@ -46,6 +47,14 @@ $app->singleton(
     Illuminate\Contracts\Console\Kernel::class,
     App\Console\Kernel::class
 );
+
+$app->singleton('filesystem', function ($app) {
+	return $app->loadComponent(
+			'filesystems',
+			Illuminate\Filesystem\FilesystemServiceProvider::class,
+			'filesystem'
+			);
+});
 
 /*
 |--------------------------------------------------------------------------

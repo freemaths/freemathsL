@@ -13,7 +13,7 @@ class Log extends Model
 		// Do nothing. - no updated-at column
 	}
     //
-	protected $fillable = ['answer', 'comment', 'event', 'paper', 'question', 'variables'];
+	protected $fillable = ['user_id', 'answer', 'comment', 'event', 'paper', 'question', 'variables'];
 	
 	public function user()
 	{

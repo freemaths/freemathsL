@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Cookie;
 use Password;
+use Illuminate\Support\Facades\Storage;
 use DB;
 use Log;
 use Illuminate\Support\Facades\Mail;
@@ -20,6 +21,7 @@ use App\Help;
 use App\Tutor;
 use App\Message;
 use App\Log as StatLog;
+use Jenssegers\Agent\Agent;
 //use App\Notifications\ResetPassword;
 
 class Controller extends BaseController
@@ -88,22 +90,24 @@ class Controller extends BaseController
 	
 	public function help(Request $request)
 	{
-		Log::info('log_help',['id'=>$request->user()->id,'topic'=>$request->topic]);
-		$row=$request->user()->logs()->create([
+		$uid=0;
+		if ($user=$this->auth($request,true)) $uid=$user->id;
+		
+		$row=StatLog::create(['user_id'=>$uid,
 				'event'=>'Help',
 				'paper'=> '',
 				'question'=>'',
 				'answer'=>$request->topic,
 				'comment'=>'',
-				'variables'=>''
-		]);
+				'variables'=>'']);
 		return response()->json($row);
 	}
 	
 	public function data(Request $request)
 	{
-		Log::info('data');
-		$tests=Test::all();
+		$ts=DB::raw('SELECT max(t.updated_at) as t_ts,max(q.updated_at) as q_ts,max(h.updated_at) as h_ts FROM tests as t,questions as q,help as h');
+		Log::info('data',['env'=>$request->header('FM-Env')]); //,'ETag'=>$request->header('If-None-Match')]);
+		$tests=Test::all();	
 		$questions=Question::where('next_id',0)->get();
 		$qmap=DB::table('question_test')->get();
 		$help = Help::where('next_id',0)->get();
@@ -166,7 +170,8 @@ class Controller extends BaseController
 			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember_token'=>$user->remember_token,'ip'=>$ip]);
 		}
 		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'ip'=>$ip]));
-		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
+		$agent=new Agent();
+		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
@@ -231,21 +236,39 @@ class Controller extends BaseController
 	
 	public function register(Request $request)
 	{
-		if ($request->ajax()) {
-			$this->validate($request,[
-					'name' => 'required|max:255',
-					'email' => 'required|email|max:255|unique:users',
-					'password' => 'required|min:6',
-					'password_confirmation' => 'required|same:password'
-			]);
-			Log::debug('register',['email'=>$request->email]);
-			$user=User::create([
-					'name' => $request['name'],
-					'email' => $request['email'],
-					'password' => Hash::make($request['password'])
-			]);
-			return $this->login($request);
+		$this->validate($request,[
+				'name' => 'required|max:255',
+				'email' => 'required|email|max:255|unique:users',
+				'password' => 'required|min:6',
+				'password_confirmation' => 'required|same:password'
+		]);
+		Log::debug('register',['email'=>$request->email]);
+		$user=User::create([
+				'name' => $request['name'],
+				'email' => $request['email'],
+				'password' => Hash::make($request['password'])
+		]);
+		return $this->login($request);
+	}
+	
+	public function update(Request $request)
+	{
+		$user=$request->user();
+		$rules['name']='required|max:255';
+		$user->name=$request->name;
+		if ($user->email != $request->email) {
+			$rules['email']='required|email|max:255|unique:users';
+			$user->email=$request->email;
 		}
+		if ($request->password) {
+			$rules['password']='required|min:6';
+			$rules['password_confirmation']='required|same:password';
+			$user->password=Hash::make($request->password);
+		}
+		Log::debug('update',['rules'=>$rules]);
+		$this->validate($request,$rules);
+		$user->save(); // save changes if passes validation
+		return response()->json(['name'=>$user->name,'email'=>$user->email]);
 	}
 	
 	public function saveQ(Request $request)
@@ -274,6 +297,27 @@ class Controller extends BaseController
 				return response()->json($question);
 			}
 		}
+	}
+	
+	public function saveHelp(Request $request)
+	{
+		Log::debug('saveHelp',['title'=>$request->title,'text'=>$request->text,'id'=>$request->id]);
+		if ($request->user()->isAdmin()) {
+			/*
+			if (isset($request->delete))
+			{
+				if ($request->delete>0) Help::find($request->delete)->delete();
+				return response()->json(['deleted'=>$request->delete]);
+			}
+			*/
+			if (!$h=Help::find($request->id)) $h=new Help;
+			$h->title=$request->title;
+			$h->user_id=$request->user()->id;
+			$h->text=$request->text;
+			$h->save();
+			return response()->json($h);
+		}
+		else return response()->json(['error'=>'Unauthorised.'],401);
 	}
 	
 	
@@ -347,7 +391,7 @@ class Controller extends BaseController
 		$message->save();
 		$token=Crypt::encrypt(json_encode(['id'=>$message->id]));
 		//Mail::to($user?$user:$request->email)->send(new ContactCopy('Freemaths',$user->name,$request->message));
-		Mail::to('epdarnell@gmail.com')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token));
+		Mail::to('epdarnell@gmail.com')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token,$request->header('FM-Env')));
 		return response()->json(['sent'=>$token]);
 	}
 	
@@ -361,5 +405,13 @@ class Controller extends BaseController
 		else return response()->json(['error'=>'Invalid mail token'],422);
 	}
 	
-	
+	public function update_data(Request $request)
+	{
+		if ($request->user()->isAdmin())
+		{
+			Storage::put('data.json',json_encode($request->data));
+			return response()->json(['saved'=>true]);
+		}
+		else return response()->json(['error'=>'Unauthorised'],422);
+	}
 }
