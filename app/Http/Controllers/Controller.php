@@ -49,10 +49,10 @@ class Controller extends BaseController
 				else if (($user->remember_token == $token->token && time()-$token->time < 30*60)) {
 					return $this->ret_user($user,$request->ip());
 				}
-				else return true; // React will prompt for password
+				else return 'password'; // React will prompt for password
 			}
 		}
-		else return null;
+		return null;
 	}
 	
 	public function students(Request $request)
@@ -102,7 +102,7 @@ class Controller extends BaseController
 				'variables'=>'']);
 		return response()->json($row);
 	}
-	
+	/*TODO - mix of static/dynamic data
 	public function data(Request $request)
 	{
 		$ts=DB::raw('SELECT max(t.updated_at) as t_ts,max(q.updated_at) as q_ts,max(h.updated_at) as h_ts FROM tests as t,questions as q,help as h');
@@ -112,8 +112,11 @@ class Controller extends BaseController
 		$qmap=DB::table('question_test')->get();
 		$help = Help::where('next_id',0)->get();
 		return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help,'user'=>$this->auth($request)]);
-	}
+	}*/
 	
+	public function user(Request $request) {
+		return response()->json($this->auth($request));
+	}
 	
 	public function login(Request $request)
 	{
