@@ -13,9 +13,9 @@ Route::post('react_ajax/marking', 'ReactController@ajax_marking');
 |
 */
 
-$router->get('/', function () {
-    return view('reactapp');
-});
+$router->get('/', function () {return view('reactapp');});
+$router->get('/mail/{token}', function () {return view('reactapp');});
+$router->get('/reset/{token}', function () {return view('reactapp');});
 
 $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 	$router->get('user', 'Controller@user');
