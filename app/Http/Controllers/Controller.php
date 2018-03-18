@@ -102,17 +102,20 @@ class Controller extends BaseController
 				'variables'=>'']);
 		return response()->json($row);
 	}
-	/*TODO - mix of static/dynamic data
+	
 	public function data(Request $request)
 	{
-		$ts=DB::raw('SELECT max(t.updated_at) as t_ts,max(q.updated_at) as q_ts,max(h.updated_at) as h_ts FROM tests as t,questions as q,help as h');
-		Log::info('data',['env'=>$request->header('FM-Env')]); //,'ETag'=>$request->header('If-None-Match')]);
-		$tests=Test::all();	
-		$questions=Question::where('next_id',0)->get();
-		$qmap=DB::table('question_test')->get();
-		$help = Help::where('next_id',0)->get();
-		return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help,'user'=>$this->auth($request)]);
-	}*/
+		if ($request->user()->isAdmin()) {
+			$ts=DB::raw('SELECT max(t.updated_at) as t_ts,max(q.updated_at) as q_ts,max(h.updated_at) as h_ts FROM tests as t,questions as q,help as h');
+			Log::info('data',['env'=>$request->header('FM-Env')]); //,'ETag'=>$request->header('If-None-Match')]);
+			$tests=Test::all();
+			$questions=Question::where('next_id',0)->get();
+			$qmap=DB::table('question_test')->get();
+			$help = Help::where('next_id',0)->get();
+			return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help]);
+		}
+		else return response()->json(['error'=>'Unauthorised.'],401);
+	}
 	
 	public function user(Request $request) {
 		return response()->json($this->auth($request));
@@ -206,23 +209,20 @@ class Controller extends BaseController
 	
 	public function marking(Request $request)
 	{
-		if ($request->ajax())
+		$parts=explode(":",$request->test_id);
+		$tid=$parts[0];
+		Log::debug('ajax_marking:',['test_id'=>$request->test_id,'tid'=>$tid,'info'=>json_encode($request->info)]);
+		if (($info=$request->info) && $tid && ($test=Test::find($tid)))
 		{
-			$parts=explode(":",$request->test_id);
-			$tid=$parts[0];
-			Log::debug('ajax_marking:',['test_id'=>$request->test_id,'tid'=>$tid,'info'=>json_encode($request->info)]);
-			if (($info=$request->info) && $tid && ($test=Test::find($tid)))
-			{
-				$log = $request->user()->logs()->create([
-						'event'=>'✓✗',
-						'paper'=> $request->test_id,
-						'question'=>0,
-						'answer'=>'',
-						'comment'=>'',
-						'variables'=>json_encode($info)
-				]);
-				return response()->json(['log'=>$log]);
-			}
+			$log = $request->user()->logs()->create([
+					'event'=>'✓✗',
+					'paper'=> $request->test_id,
+					'question'=>0,
+					'answer'=>'',
+					'comment'=>'',
+					'variables'=>json_encode($info)
+			]);
+			return response()->json(['log'=>$log]);
 		}
 	}
 	
