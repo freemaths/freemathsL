@@ -31,6 +31,6 @@ class Contact extends Mailable
      */
     public function build()
     {
-        return $this->subject("Message from $this->name via FreeMaths.uk")->markdown('emails.contact');
+        return $this->subject("Message from $this->name")->markdown('emails.contact');
     }
 }

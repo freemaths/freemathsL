@@ -6,7 +6,7 @@ A message from {{$sender}}:
 @endforeach
 @endcomponent
 Use View on FreeMaths.uk to see formatted maths and reply.
-@component('mail::button', ['url'=>"http://localhost:3000/mail/$token"])
+@component('mail::button', ['url'=>url("/mail/$token")])
 View on FreeMaths.uk
 @endcomponent
 
