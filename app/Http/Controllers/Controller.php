@@ -147,19 +147,20 @@ class Controller extends BaseController
 		$this->validate($request, [
 				'password' => 'required'
 		]);
-		if ($request->ajax()) {
-			$user=$this->auth($request,true);
-			if ($user && Hash::check($request->password, $user->password))
-			{
-				if ($request->auth) return response()->json(['auth'=>true]);
-				$resp=$this->ret_user($user,$request->ip(),true);
-				return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
-			}
-			else
-			{
-				Log::debug('password - fail',['email'=>$user?$user->email:null]);
-				return response()->json(['password'=>'These credentials do not match our records.'],401);
-			}
+		$to_user=$request->to?User::find($request->to['id']):null;
+		$user=$this->auth($request,true);
+		Log::debug('password',['user'=>$user,'to'=>$request->to,'to_user'=>$to_user]);
+		if (($user && Hash::check($request->password, $user->password)) ||
+			($to_user && Hash::check($request->password, $to_user->password)))
+		{
+			if ($request->auth && $user) return response()->json(['auth'=>true]);
+			$resp=$this->ret_user($to_user?$to_user:$user,$request->ip(),true);
+			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
+		}
+		else
+		{
+			Log::debug('password - fail',['email'=>$user?$user->email:null]);
+			return response()->json(['password'=>'These credentials do not match our records.'],401);
 		}
 	}
 	
@@ -370,8 +371,19 @@ class Controller extends BaseController
 	public function contact(Request $request)
 	{
 		$message=new Message;
-		$message->to_uid=1; // change when tutors supported
-		if ($user=$this->auth($request,true,true))
+		if ($request->to) {
+			if ($to=User::where('email',$request->to['email'])->first()) $message->to_uid=$to->id;
+			else {
+				$to=$request->to;
+				$message->to_uid=0;
+			}
+		}
+		else {
+			$to=User::find(1);
+			$message->to_uid=1;
+		}
+		Log::debug('contact',['to'=>$to]);
+		if ($user=$this->auth($request,true)) // removed expire
 		{
 			Log::debug('contact',['user'=>$user->id]);
 			$this->validate($request, [
@@ -390,11 +402,13 @@ class Controller extends BaseController
 			if ($user=User::where('email',$request->email)->first()) $message->from_uid=$user->id; // if known email
 			else $message->from_uid=0;
 		}
-		$message->json=json_encode(['to'=>['name'=>'Ed Darnell','id'=>1],'from'=>$user?['name'=>$user->name,'id'=>$user->id]:['name'=>$request->name,'email'=>$request->email],'message'=>$request->message,'maths'=>$request->only('maths'),'ts'=>time()]);
+		$from=$user?['name'=>$user->name,'email'=>$user->email,'id'=>$user->id]:['name'=>$request->name,'email'=>$request->email];
+		$message->json=json_encode(['to'=>$to,'from'=>$from,'message'=>$request->message,'maths'=>$request->maths,'ts'=>time()]);
 		$message->save();
 		$token=Crypt::encrypt(json_encode(['id'=>$message->id]));
-		//Mail::to($user?$user:$request->email)->send(new ContactCopy('Freemaths',$user->name,$request->message));
-		Mail::to('epdarnell@gmail.com')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token,$request->header('FM-Env')));
+		if (isset($to['id']) && $to['id']==1) Mail::to('epdarnell@gmail.com')->send(new Contact($from,$to,$request->message,$token,$request->header('FM-Env')));
+		else Mail::to($to['email'])->send(new Contact($from,$to,$request->message,$token,$request->header('FM-Env')));
+		//Mail::to('epdarnell@gmail.com')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token,$request->header('FM-Env')));
 		return response()->json(['sent'=>$token]);
 	}
 	
