@@ -37,7 +37,7 @@ class Controller extends BaseController
 	{
 		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token'); //laravel bug?
 		if (!$FMtoken) $FMtoken=$request->cookie('FM-Token'); // may change this not to use token
-		Log::info('auth',['token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
+		//Log::info('auth',['token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
 			if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id])->first())
 			{
