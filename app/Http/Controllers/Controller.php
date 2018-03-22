@@ -103,20 +103,6 @@ class Controller extends BaseController
 		return response()->json($row);
 	}
 	
-	public function data(Request $request)
-	{
-		if ($request->user()->isAdmin()) {
-			$ts=DB::raw('SELECT max(t.updated_at) as t_ts,max(q.updated_at) as q_ts,max(h.updated_at) as h_ts FROM tests as t,questions as q,help as h');
-			Log::info('data',['env'=>$request->header('FM-Env')]); //,'ETag'=>$request->header('If-None-Match')]);
-			$tests=Test::all();
-			$questions=Question::where('next_id',0)->get();
-			$qmap=DB::table('question_test')->get();
-			$help = Help::where('next_id',0)->get();
-			return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help]);
-		}
-		else return response()->json(['error'=>'Unauthorised.'],401);
-	}
-	
 	public function user(Request $request) {
 		return response()->json($this->auth($request));
 	}
@@ -315,6 +301,7 @@ class Controller extends BaseController
 			}
 			*/
 			if (!$h=Help::find($request->id)) $h=new Help;
+			$h->previous_id=$h->next_id=0;
 			$h->title=$request->title;
 			$h->user_id=$request->user()->id;
 			$h->text=$request->text;
@@ -370,9 +357,11 @@ class Controller extends BaseController
 	
 	public function contact(Request $request)
 	{
+		//Log::debug('contact',['request'=>$request]);
 		$message=new Message;
 		if ($request->to) {
-			if ($to=User::where('email',$request->to['email'])->first()) $message->to_uid=$to->id;
+			if ($request->to['id'] && $to=User::find($request->to['id'])) $message->to_uid=$to->id;
+			else if ($to=User::where('email',$request->to['email'])->first()) $message->to_uid=$to->id;
 			else {
 				$to=$request->to;
 				$message->to_uid=0;
@@ -382,10 +371,9 @@ class Controller extends BaseController
 			$to=User::find(1);
 			$message->to_uid=1;
 		}
-		Log::debug('contact',['to'=>$to]);
 		if ($user=$this->auth($request,true)) // removed expire
 		{
-			Log::debug('contact',['user'=>$user->id]);
+			//Log::debug('contact',['user'=>$user->id]);
 			$this->validate($request, [
 					'message' => 'required'
 			]);
@@ -393,7 +381,7 @@ class Controller extends BaseController
 		}
 		else
 		{
-			Log::debug('contact',['anon'=>$request->email]);
+			//Log::debug('contact',['anon'=>$request->email]);
 			$this->validate($request, [
 					'name' => 'required',
 					'email' => 'email|required',
@@ -403,11 +391,11 @@ class Controller extends BaseController
 			else $message->from_uid=0;
 		}
 		$from=$user?['name'=>$user->name,'email'=>$user->email,'id'=>$user->id]:['name'=>$request->name,'email'=>$request->email];
-		$message->json=json_encode(['to'=>$to,'from'=>$from,'message'=>$request->message,'maths'=>$request->maths,'ts'=>time()]);
+		$message->json=json_encode(['to'=>$to,'from'=>$from,'message'=>$request->message,'qkey'=>$request->qkey,'maths'=>$request->maths,'ts'=>time()]);
 		$message->save();
 		$token=Crypt::encrypt(json_encode(['id'=>$message->id]));
-		if (isset($to['id']) && $to['id']==1) Mail::to('epdarnell@gmail.com')->send(new Contact($from,$to,$request->message,$token,$request->header('FM-Env')));
-		else Mail::to($to['email'])->send(new Contact($from,$to,$request->message,$token,$request->header('FM-Env')));
+		if (isset($to['id']) && $to['id']==1) Mail::to('epdarnell@gmail.com')->send(new Contact($message->json,$token,$request->question));
+		else Mail::to($to['email'])->send(new Contact($message->json,$token,$request->question));
 		//Mail::to('epdarnell@gmail.com')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token,$request->header('FM-Env')));
 		return response()->json(['sent'=>$token]);
 	}
@@ -420,6 +408,21 @@ class Controller extends BaseController
 			return response($message->json,200)->header('Content-Type','application/json');
 		}
 		else return response()->json(['error'=>'Invalid mail token'],422);
+	}
+	
+	public function data(Request $request)
+	{
+		if ($request->user()->isAdmin()) {
+			$ts=DB::raw('SELECT max(t.updated_at) as t_ts,max(q.updated_at) as q_ts,max(h.updated_at) as h_ts FROM tests as t,questions as q,help as h');
+			Log::info('data',['env'=>$request->header('FM-Env')]); //,'ETag'=>$request->header('If-None-Match')]);
+			$tests=Test::orderBy('id')->get();
+			$questions=Question::where('next_id',0)->orderBy('id')->get();
+			$qmap=DB::table('question_test')->get(); // needs more work if to remain - better to enclose in tests json
+			$help = Help::where('next_id',0)->orderBy('id')->get();
+			Storage::put('tables.json',json_encode(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help]));
+			return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help]);
+		}
+		else return response()->json(['error'=>'Unauthorised.'],401);
 	}
 	
 	public function update_data(Request $request)

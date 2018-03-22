@@ -1,7 +1,10 @@
 @component('mail::message')
-A message from {{$from_user['name']}}{{$to_user['email']==='ed@darnell.org.uk'?' <'.$from_user['email'].'>':''}}:
+A message from {{$message->from->name}}{{$message->to->email==='ed@darnell.org.uk'?' <'.$message->from->email.'>':''}}<br>
+@if ($question)
+#Question: {{$question}}<br>
+@endif
 @component('mail::panel')
-@foreach (explode("\n",$message) as $line)
+@foreach (explode("\n",$message->message) as $line)
 {{$line}}<br>
 @endforeach
 @endcomponent

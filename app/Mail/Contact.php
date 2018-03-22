@@ -6,22 +6,22 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Log;
 
 class Contact extends Mailable
 {
     use Queueable, SerializesModels;
-	public $from_user,$to_user,$message,$token;
+	public $message,$token,$question;
     /**
      * Create a new message instance.
      *
      * @return void
      */
-    public function __construct($from,$to,$message,$token)
+    public function __construct($message,$token,$question)
     {
-        $this->to_user=$to;
-        $this->from_user=$from;
-        $this->message=$message;
+        $this->message=json_decode($message);
         $this->token=$token;
+        $this->question=$question;
     }
 
     /**
@@ -31,6 +31,7 @@ class Contact extends Mailable
      */
     public function build()
     {
-        return $this->subject("Message from ".$this->from_user['name'])->markdown('emails.contact');
+    	//Log::debug('Contact',['message'=>$this->message]);
+        return $this->subject("Message from ".$this->message->from->name)->markdown('emails.contact');
     }
 }
