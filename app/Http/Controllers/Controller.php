@@ -371,7 +371,16 @@ class Controller extends BaseController
 			$to=User::find(1);
 			$message->to_uid=1;
 		}
-		if ($user=$this->auth($request,true)) // removed expire
+		if ($request->from) {
+			if ($request->from['id'] && $user=User::find($request->from['id'])) $message->from_uid=$user->id;
+			else if ($user=User::where('email',$request->from['email'])->first()) $message->from_uid=$user->id;
+			else {
+				Log::error('contact - unkown sender',['from'=>$request->from]);
+				$user=$request->from;
+				$message->from_uid=0;
+			}
+		}
+		else if ($user=$this->auth($request,true)) // removed expire
 		{
 			//Log::debug('contact',['user'=>$user->id]);
 			$this->validate($request, [
