@@ -443,4 +443,56 @@ class Controller extends BaseController
 		}
 		else return response()->json(['error'=>'Unauthorised'],422);
 	}
+	
+	public function past(Request $request)
+	{
+		$t = null;
+		if ($test = @$request->test)
+		{
+			Log::debug('ajax_past:'.print_r($test,true));
+			if (@$test['id'] != '') $t = Test::find($test['id']);
+			if (@$t && $t->user->id == $request->user()->id) // don't use user()->id on relationship
+			{
+				// nothing special
+			}
+			else
+			{
+				$t = new Test;
+				$t->user()->associate($request->user());
+			}
+			$t->keywords = $test['name']." ".$test['board']." ".$test['month']." ".$test['year'];
+			$t->json = json_encode($test);
+			$t->title = $test['name']."_".$test['board']."_".$test['month']."_".$test['year'];
+			$t->type="past";
+			$t->save();
+			Storage::put('tests/' . "{$t->title}.{$t->id}.json",json_encode($t));
+		}
+		return response()->json(['id'=>$t['id']]);
+	}
+	
+	public function ajax_book(Request $request, $type='book')
+	{
+		$t = null;
+		if ($book = @$request->book)
+		{
+			//Log::debug('ajax_book:'.print_r($test,true));
+			if (@$book['id'] != '') $t = Test::find($book['id']);
+			if (@$t && $t->user->id == $request->user()->id) // don't use user()->id on relationship
+			{
+				// nothing special
+			}
+			else
+			{
+				$t = new Test;
+				$t->user()->associate($request->user());
+			}
+			$t->keywords = $book['name'];
+			$t->json = json_encode($book);
+			$t->title = $book['name']."_".$book['board'];
+			$t->type=$type;
+			$t->save();
+			Storage::put('books/' . "{$t->title}.{$t->id}.json",json_encode($t));
+		}
+		return response()->json(['id'=>$t['id']]);
+		}
 }
