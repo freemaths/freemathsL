@@ -59,19 +59,27 @@ class Controller extends BaseController
 	{
 		$log=[];
 		$students=[];
-		if($request->ajax()){
-			if ($students=$request->user()->students($request->only('all')))
-			{
-				Log::debug('ajax_stats:',['students'=>$students]);
-				if ($request->only('last')) $log=StatLog::whereIn('user_id',$students)->where('id','>',$request->only('last'))->orderBy('id','asc')->get();
-				else
-				{
-					$log=StatLog::whereIn('user_id',$students)->orderBy('id','asc')->get();
-					$users=User::whereIn('id',$students)->select('id','name')->get();
-				}
-			}
-			return response()->json(['log'=>$log,'users'=>$users]);
+		if ($request->user()->isAdmin() && $request->all)
+		{
+			$users=User::select('id','name')->get();
+			if ($request->has('last')) $log=StatLog::where('id','>',$request->last)->orderBy('id','asc')->get();
+			else $log=StatLog::orderBy('id','asc')->get();
 		}
+		else
+		{
+			$students=$request->user()->students();
+			$users=User::whereIn('id',$students)->select('id','name')->get();
+			if ($request->has('last')) $log=StatLog::whereIn('user_id',$students)->where('id','>',$request->last)->orderBy('id','asc')->get();
+			else $log=StatLog::whereIn('user_id',$students)->orderBy('id','asc')->get();
+		}
+		Log::debug('students',['users'=>$users]);
+		return response()->json(['log'=>$log,'users'=>$users]);
+	}
+	
+	public function users(Request $request)
+	{
+		if ($request->user()->isAdmin()) $users=User::select('id','name','email','created_at','updated_at')->get();
+		return response()->json(['users'=>$users]);
 	}
 	
 	public function log_event(Request $request)
@@ -177,8 +185,10 @@ class Controller extends BaseController
 	
 	public function reset(Request $request)
 	{
+		//Log::debug('reset',['email'=>$request->email]);
 		$this->validate($request, [
 				'email' => 'required',
+				'token' => 'required',
 				'password' => 'required|min:6',
 				'password_confirmation' => 'required|same:password'
 		]);
