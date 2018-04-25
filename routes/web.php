@@ -1,7 +1,5 @@
 <?php
 
-Route::post('react_ajax/marking', 'ReactController@ajax_marking');
-
 /*
 |--------------------------------------------------------------------------
 | Web Routes
