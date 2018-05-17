@@ -5,5 +5,5 @@
 <!--E home -->
 @endsection
 @section('javascript')
-<script type="text/javascript" src="/FreeMaths.js"></script>
+<script type="text/javascript" src="/FreeMaths.js?{{$v}}"></script>
 @endsection

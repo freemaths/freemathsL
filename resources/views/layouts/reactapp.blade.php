@@ -12,7 +12,7 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css" rel='stylesheet' type='text/css'/>
 <link href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.6/cerulean/bootstrap.min.css" rel="stylesheet"/>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.9.0/katex.min.css" rel="stylesheet"/>
-<link rel="stylesheet" href="/FreeMaths.css"/>
+<link rel="stylesheet" href="/FreeMaths.css?{{$v}}"/>
 <body id="app-layout">
 @yield('content')
 @yield('javascript')

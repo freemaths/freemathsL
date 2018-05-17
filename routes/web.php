@@ -1,5 +1,4 @@
 <?php
-
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -11,9 +10,10 @@
 |
 */
 
-$router->get('/', function () {return view('reactapp');});
-$router->get('/mail/{token}', function () {return view('reactapp');});
-$router->get('/reset/{token}', function () {return view('reactapp');});
+$router->get('/', function () {return view('reactapp',['v'=>'2.2']);});
+$router->get('/mail/{token}', function () {return view('reactapp',['v'=>'2.2']);});
+$router->get('/reset/{token}', function () {return view('reactapp',['v'=>'2.2']);});
+$router->get('/contact', function () {return view('reactapp',['v'=>'2.2']);});
 
 $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 	$router->get('user', 'Controller@user');
