@@ -30,6 +30,7 @@ $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 
 $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () use ($router) {
 	$router->get('data', 'Controller@data');
+	$router->get('data2', 'Controller@data');
 	$router->post('log_event', 'Controller@log_event');
 	$router->post('students', 'Controller@students');
 	$router->post('saveQ', 'Controller@saveQ');
@@ -39,5 +40,6 @@ $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () us
 	$router->post('update', 'Controller@update');
 	$router->post('update_data', 'Controller@update_data');
 	$router->post('past', 'Controller@past');
+	$router->post('book', 'Controller@book');
 	$router->get('users', 'Controller@users');
 });

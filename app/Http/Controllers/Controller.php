@@ -33,26 +33,38 @@ class Controller extends BaseController
 		//$this->middleware('guest', ['except' => 'logout']);
 	}
 	
+	// Which routes must authenticate defined in routes web.php
+	// For main autentication see AuthServiceProvider in Providers
+	// auth is used to manually authenticate for non auth routes 
 	private function auth($request,$object=false,$expire=false)
 	{
+		$method='header';
 		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token'); //laravel bug?
-		if (!$FMtoken) $FMtoken=$request->cookie('FM-Token'); // may change this not to use token
-		//Log::info('auth',['token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
+		if (!$FMtoken) {
+			$FMtoken=$request->cookie('FM-Token'); // may change this not to use token
+			$method='cookie';
+		}
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
 			if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id])->first())
 			{
 				if ($object)
 				{
-					if ($expire && !($user->remember_token == $token->token && time()-$token->time < 30*60)) return null;
-					else return $user;
+					if ($expire && !($user->remember_token == $token->token && time()-$token->time < 30*60)) $ret=null;
+					else $ret=$user;
 				}
 				else if (($user->remember_token == $token->token && time()-$token->time < 30*60)) {
-					return $this->ret_user($user,$request->ip());
+					$ret=$this->ret_user($user,$request->ip());
 				}
-				else return 'password'; // React will prompt for password
+				else $ret='password'; // React will prompt for password
 			}
+			else $ret=null;
 		}
-		return null;
+		else {
+			$ret=null;
+			$method=false;
+		}
+		Log::info('auth',['method'=>$method,'ret'=>is_object($ret)&&isset($ret->id)?$ret->id:isset($ret['id'])?$ret['id']:$ret,'object'=>$object,'expire'=>$expire]); //,'token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
+		return $ret;
 	}
 	
 	public function students(Request $request)
@@ -121,18 +133,16 @@ class Controller extends BaseController
 				'email' => 'required',
 				'password' => 'required'
 		]);
-		if ($request->ajax()) {
-			$user = User::where('email',$request->email)->first();
-			if ($user && Hash::check($request->password, $user->password))
-			{
-				$resp=$this->ret_user($user,$request->ip(),true);
-				return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));;
-			}
-			else
-			{
-				Log::debug('login - unknown',['email'=>$request->email]);
-				return response()->json(['email'=>'These credentials do not match our records.'],401);
-			}		
+		$user = User::where('email',$request->email)->first();
+		if ($user && Hash::check($request->password, $user->password))
+		{
+			$resp=$this->ret_user($user,$request->ip(),true);
+			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));;
+		}
+		else
+		{
+			Log::debug('login - unknown',['email'=>$request->email]);
+			return response()->json(['email'=>'These credentials do not match our records.'],401);
 		}
 	}
 	
@@ -444,11 +454,24 @@ class Controller extends BaseController
 		else return response()->json(['error'=>'Unauthorised.'],401);
 	}
 	
-	public function update_data(Request $request)
+	public function data2(Request $request)
 	{
 		if ($request->user()->isAdmin())
 		{
+			$data=Storage::get('data.json');
+			return response()->json(['file'=>$data]);
+		}
+	}
+	
+	public function update_data(Request $request)
+	{
+		if ($request->user()->isAdmin() && $lz=$request->lz)
+		{
 			Storage::put('data.json',json_encode($request->data));
+			Storage::put('tests.lz',$lz['tests']);
+			Storage::put('books.lz',$lz['books']);
+			Storage::put('past.lz',$lz['past']);
+			Storage::put('help.lz',$lz['help']);
 			return response()->json(['saved'=>true]);
 		}
 		else return response()->json(['error'=>'Unauthorised'],422);
@@ -459,7 +482,7 @@ class Controller extends BaseController
 		$t = null;
 		if ($test = @$request->test)
 		{
-			Log::debug('ajax_past:'.print_r($test,true));
+			Log::debug('ajax_past',['test'=>$test['id']]); //,'name'=>$test['name']]);
 			if (@$test['id'] != '') $t = Test::find($test['id']);
 			if (@$t && $t->user->id == $request->user()->id) // don't use user()->id on relationship
 			{
@@ -470,6 +493,8 @@ class Controller extends BaseController
 				$t = new Test;
 				$t->user()->associate($request->user());
 			}
+			if ($request->has('copy')) $test['copy']=$request->copy;
+			else unset($test['copy']);
 			$t->keywords = $test['name']." ".$test['board']." ".$test['month']." ".$test['year'];
 			$t->json = json_encode($test);
 			$t->title = $test['name']."_".$test['board']."_".$test['month']."_".$test['year'];
@@ -480,7 +505,7 @@ class Controller extends BaseController
 		return response()->json(['id'=>$t['id']]);
 	}
 	
-	public function ajax_book(Request $request, $type='book')
+	public function book(Request $request, $type='book')
 	{
 		$t = null;
 		if ($book = @$request->book)
