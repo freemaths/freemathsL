@@ -10,10 +10,10 @@
 |
 */
 
-$router->get('/', function () {return view('reactapp',['v'=>'3.0']);});
-$router->get('/mail/{token}', function () {return view('reactapp',['v'=>'3.0']);});
-$router->get('/reset/{token}', function () {return view('reactapp',['v'=>'3.0']);});
-$router->get('/contact', function () {return view('reactapp',['v'=>'3.0']);});
+$router->get('/', function () {return view('reactapp',['v'=>'3.1']);});
+$router->get('/mail/{token}', function () {return view('reactapp',['v'=>'3.1']);});
+$router->get('/reset/{token}', function () {return view('reactapp',['v'=>'3.1']);});
+$router->get('/contact', function () {return view('reactapp',['v'=>'3.1']);});
 
 $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 	$router->get('user', 'Controller@user');
