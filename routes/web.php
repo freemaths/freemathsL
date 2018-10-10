@@ -16,7 +16,7 @@
 //$router->get('/contact', function () {return view('reactapp',['v'=>'3.1']);});
 
 $router->group(['prefix' => 'react_ajax'], function () use ($router) {
-	$router->get('user', 'Controller@user');
+	//$router->get('user', 'Controller@user');
 	$router->post('user', 'Controller@user');
 	$router->post('login', 'Controller@login');
 	$router->post('password', 'Controller@password');
