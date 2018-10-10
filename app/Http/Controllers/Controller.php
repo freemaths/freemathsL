@@ -54,7 +54,7 @@ class Controller extends BaseController
 					if ($expire && !($user->remember_token==$token->token && ($token->remember || time()-$token->time < 30*60))) $ret=null;
 					else $ret=$user;
 				}
-				else if (($user->remember_token==$token->token && ($token->remember || time()-$token->time < 30*60))) {
+				else if (($user->remember_token==$token->token && ($remember || time()-$token->time < 30*60))) {
 					$request->remember=$remember; // preserve current setting
 					$ret=$this->ret_user($user,$request);
 				}
