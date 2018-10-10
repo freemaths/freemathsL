@@ -178,7 +178,7 @@ class Controller extends BaseController
 	public function ret_user($user,$request,$set=false)
 	{
 		$ip=$request->ip();
-		$remember=isset($request->remember)?$request->remember:false;
+		$remember=$request->has('remember')?$request->remember:false;
 		$lastLogId=isset($request->lastLogId)?$request->lastLogId:0;
 		if ($set)
 		{
