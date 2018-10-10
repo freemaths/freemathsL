@@ -179,7 +179,7 @@ class Controller extends BaseController
 	{
 		$ip=$request->ip();
 		$remember=$request->has('remember')?$request->remember:false;
-		$lastLogId=isset($request->lastLogId)?$request->lastLogId:0;
+		$lastLogId=$request->has('lastLogId')?$request->lastLogId:0;
 		if ($set)
 		{
 			// need to think best way to allow mix of remember and non-remember logins. Perhaps add ip to token?
