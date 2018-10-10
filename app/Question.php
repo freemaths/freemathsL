@@ -7,7 +7,7 @@ use Log;
 
 class Question extends Model
 {
-	//public $timestamps = false;
+	public $timestamps = false;
 	protected $fillable = ['json'];	
 	
 	public function tests()

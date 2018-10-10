@@ -39,9 +39,9 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     	return $this->hasMany(Log::class);
     }
     
-    public function log()
+    public function log($lastId=0)
     {
-    	return Log::where('user_id',$this->id)->orderBy('id','asc')->get();
+    	return Log::where([['user_id','=',$this->id],['id','>',$lastId]])->orderBy('id','asc')->get();
     }
     
     public function tutors()

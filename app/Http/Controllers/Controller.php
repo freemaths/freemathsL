@@ -39,6 +39,7 @@ class Controller extends BaseController
 	private function auth($request,$object=false,$expire=false)
 	{
 		$method='header';
+		$remember=null;
 		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token'); //laravel bug?
 		if (!$FMtoken) {
 			$FMtoken=$request->cookie('FM-Token'); // may change this not to use token
@@ -47,13 +48,15 @@ class Controller extends BaseController
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
 			if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id])->first())
 			{
+				$remember=isset($token->remember)?$token->remember:false;
 				if ($object)
 				{
-					if ($expire && !($user->remember_token == $token->token && time()-$token->time < 30*60)) $ret=null;
+					if ($expire && !($user->remember_token==$token->token && ($token->remember || time()-$token->time < 30*60))) $ret=null;
 					else $ret=$user;
 				}
-				else if (($user->remember_token == $token->token && time()-$token->time < 30*60)) {
-					$ret=$this->ret_user($user,$request->ip());
+				else if (($user->remember_token==$token->token && ($token->remember || time()-$token->time < 30*60))) {
+					$request->remember=$remember; // preserve current setting
+					$ret=$this->ret_user($user,$request);
 				}
 				else $ret='password'; // React will prompt for password
 			}
@@ -63,7 +66,7 @@ class Controller extends BaseController
 			$ret=null;
 			$method=false;
 		}
-		Log::info('auth',['method'=>$method,'ret'=>is_object($ret)&&isset($ret->id)?$ret->id:isset($ret['id'])?$ret['id']:$ret,'object'=>$object,'expire'=>$expire]); //,'token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
+		Log::info('auth',['method'=>$method,'ret'=>is_object($ret)&&isset($ret->id)?$ret->id:isset($ret['id'])?$ret['id']:$ret,'object'=>$object,'expire'=>$expire,'remember'=>$remember]); //,'token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
 		return $ret;
 	}
 	
@@ -136,7 +139,7 @@ class Controller extends BaseController
 		$user = User::where('email',$request->email)->first();
 		if ($user && Hash::check($request->password, $user->password))
 		{
-			$resp=$this->ret_user($user,$request->ip(),true);
+			$resp=$this->ret_user($user,$request,true);
 			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));;
 		}
 		else
@@ -158,7 +161,7 @@ class Controller extends BaseController
 			($to_user && Hash::check($request->password, $to_user->password)))
 		{
 			if ($request->auth && $user) return response()->json(['auth'=>true]);
-			$resp=$this->ret_user($to_user?$to_user:$user,$request->ip(),true);
+			$resp=$this->ret_user($to_user?$to_user:$user,$request,true);
 			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
@@ -172,17 +175,23 @@ class Controller extends BaseController
 		return response()->json('logged out')->cookie(new Cookie ('FM-Token','',0));
 	}
 	
-	public function ret_user($user,$ip,$set=false)
+	public function ret_user($user,$request,$set=false)
 	{
+		$ip=$request->ip();
+		$remember=isset($request->remember)?$request->remember:false;
+		$lastLogId=isset($request->lastLogId)?$request->lastLogId:0;
 		if ($set)
 		{
-			$user->remember_token=base64_encode(str_random(40));
-			$user->save();
-			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember_token'=>$user->remember_token,'ip'=>$ip]);
+			// need to think best way to allow mix of remember and non-remember logins. Perhaps add ip to token?
+			if (!$user->remember_token) {
+				$user->remember_token=base64_encode(str_random(40));
+				$user->save();
+			}
+			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'ip'=>$ip,'remember'=>$remember,'remember_token'=>$user->remember_token]);
 		}
-		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'ip'=>$ip]));
+		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'ip'=>$ip, 'remember'=>$remember]));
 		$agent=new Agent();
-		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log(),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
+		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
@@ -208,7 +217,7 @@ class Controller extends BaseController
 		//$ret=$user->notify(new ResetPassword($user));
 		
 		if ($ret == 'passwords.reset') {
-			$resp=$this->ret_user($this->user,$request->ip(),true);
+			$resp=$this->ret_user($this->user,$request,true);
 			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else return response()->json(['error'=>"password reset expired or does not match email"],401);
