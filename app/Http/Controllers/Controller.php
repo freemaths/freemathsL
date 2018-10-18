@@ -46,7 +46,7 @@ class Controller extends BaseController
 			$method='cookie';
 		}
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
-			if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id])->first())
+			if ($user=User::where(['id'=>$token->id])->first())
 			{
 				$remember=isset($token->remember)?$token->remember:false;
 				if ($object)
@@ -177,7 +177,6 @@ class Controller extends BaseController
 	
 	public function ret_user($user,$request,$set=false)
 	{
-		$ip=$request->ip();
 		$remember=$request->has('remember')?$request->remember:false;
 		$lastLogId=$request->has('lastLogId')?$request->lastLogId:0;
 		if ($set)
@@ -187,9 +186,9 @@ class Controller extends BaseController
 				$user->remember_token=base64_encode(str_random(40));
 				$user->save();
 			}
-			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'ip'=>$ip,'remember'=>$remember,'remember_token'=>$user->remember_token]);
+			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
 		}
-		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'ip'=>$ip, 'remember'=>$remember]));
+		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(), 'remember'=>$remember]));
 		$agent=new Agent();
 		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}

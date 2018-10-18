@@ -35,13 +35,13 @@ class AuthServiceProvider extends ServiceProvider
         $this->app['auth']->viaRequest('api', function ($request) {
         	$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
         	if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
-        		if ($request->ip() == $token->ip && $user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
+        		if ($user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
         		{
         			Log::debug('auth success',['user'=>$user->id]);
         			return $user;
         		}
         		else {
-        			Log::debug('auth failed',['FM-Token'=>$FMtoken]);
+        			Log::debug('auth failed',['FM-Token'=>$token]);
         			return null;
         		}
         	}
