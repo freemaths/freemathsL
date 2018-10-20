@@ -10,6 +10,7 @@
 |
 */
 
+//$router->get('/mail/{token}', function () {return view('index');});
 //$router->get('/', function () {return view('reactapp',['v'=>'3.1']);});
 //$router->get('/mail/{token}', function () {return view('reactapp',['v'=>'3.1']);});
 //$router->get('/reset/{token}', function () {return view('reactapp',['v'=>'3.1']);});
