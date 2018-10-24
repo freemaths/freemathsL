@@ -36,38 +36,23 @@ class Controller extends BaseController
 	// Which routes must authenticate defined in routes web.php
 	// For main autentication see AuthServiceProvider in Providers
 	// auth is used to manually authenticate for non auth routes 
-	private function auth($request,$object=false,$expire=false)
+	private function auth($request)
 	{
-		$method='header';
-		$remember=null;
-		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token'); //laravel bug?
-		if (!$FMtoken) {
-			$FMtoken=$request->cookie('FM-Token'); // may change this not to use token
-			$method='cookie';
-		}
+		// duplicate of code in AuthServiceProvider
+		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
-			if ($user=User::where(['id'=>$token->id])->first())
+			if ($user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
 			{
-				$remember=isset($token->remember)?$token->remember:false;
-				if ($object)
-				{
-					if ($expire && !($user->remember_token==$token->token && ($token->remember || time()-$token->time < 30*60))) $ret=null;
-					else $ret=$user;
-				}
-				else if (($user->remember_token==$token->token && ($remember || time()-$token->time < 30*60))) {
-					$request->remember=$remember; // preserve current setting
-					$ret=$this->ret_user($user,$request);
-				}
-				else $ret='password'; // React will prompt for password
+				Log::debug('auth success',['user'=>$user->id]);
+				return $user;
 			}
-			else $ret=null;
+			else {
+				Log::debug('auth failed',['FM-Token'=>$token]);
+				return null;
+			}
 		}
-		else {
-			$ret=null;
-			$method=false;
-		}
-		Log::info('auth',['method'=>$method,'ret'=>is_object($ret)&&isset($ret->id)?$ret->id:isset($ret['id'])?$ret['id']:$ret,'object'=>$object,'expire'=>$expire,'remember'=>$remember]); //,'token'=>$FMtoken,'header'=>$request->header('FM-Token'),'cookie'=>$request->cookie('FM-Token')]);
-		return $ret;
+		Log::debug('auth fail',['FM-Token'=>$FMtoken]);
+		return null;
 	}
 	
 	public function students(Request $request)
@@ -114,7 +99,7 @@ class Controller extends BaseController
 	public function help(Request $request)
 	{
 		$uid=0;
-		if ($user=$this->auth($request,true)) $uid=$user->id;
+		if ($user=$this->auth($request)) $uid=$user->id;
 		
 		$row=StatLog::create(['user_id'=>$uid,
 				'event'=>'Help',
@@ -127,7 +112,7 @@ class Controller extends BaseController
 	}
 	
 	public function user(Request $request) {
-		return response()->json($this->auth($request));
+		return response()->json($this->ret_user($request));
 	}
 	
 	public function login(Request $request)
@@ -139,8 +124,7 @@ class Controller extends BaseController
 		$user = User::where('email',$request->email)->first();
 		if ($user && Hash::check($request->password, $user->password))
 		{
-			$resp=$this->ret_user($user,$request,true);
-			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));;
+			return response()->json($this->ret_user($request));//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
@@ -155,14 +139,13 @@ class Controller extends BaseController
 				'password' => 'required'
 		]);
 		$to_user=$request->to?User::find($request->to['id']):null;
-		$user=$this->auth($request,true);
+		$user=$this->auth($request);
 		Log::debug('password',['user'=>$user,'to'=>$request->to,'to_user'=>$to_user]);
 		if (($user && Hash::check($request->password, $user->password)) ||
 			($to_user && Hash::check($request->password, $to_user->password)))
 		{
 			if ($request->auth && $user) return response()->json(['auth'=>true]);
-			$resp=$this->ret_user($to_user?$to_user:$user,$request,true);
-			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
+			return response()->json($this->ret_user($request));//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
@@ -175,21 +158,24 @@ class Controller extends BaseController
 		return response()->json('logged out')->cookie(new Cookie ('FM-Token','',0));
 	}
 	
-	public function ret_user($user,$request,$set=false)
+	public function ret_user($request,$reset=false)
 	{
-		$remember=$request->has('remember')?$request->remember:false;
+		// to_user email needs more thought - test user at client?
+		$user=null;
+		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
+		if ($FMtoken) $token=json_decode(Crypt::decrypt($FMtoken));
+		if ($request->has('to_user')) $user=User::find($request->to_user);
+		else if ($request->has('email')) $user=User::where(['email'=>$request->email])->first();
+		else if ($token) $user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first();
 		$lastLogId=$request->has('lastLogId')?$request->lastLogId:0;
-		if ($set)
-		{
-			// need to think best way to allow mix of remember and non-remember logins. Perhaps add ip to token?
-			if (!$user->remember_token) {
-				$user->remember_token=base64_encode(str_random(40));
-				$user->save();
-			}
-			Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
+		if (!$user->remember_token || $reset) {
+			$user->remember_token=base64_encode(str_random(40));
+			$user->save();
 		}
+		$remember=$request->has('remember')?$request->remember:$token->remember; // to_email not stored so irrelevant
 		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(), 'remember'=>$remember]));
 		$agent=new Agent();
+		Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
 		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
@@ -210,14 +196,12 @@ class Controller extends BaseController
 				'password' => 'required|min:6',
 				'password_confirmation' => 'required|same:password'
 		]);
-		
 		$ret = Password::reset($request->only('email','password','password_confirmation','token'),function($u,$p){$this->set_password($u,$p);});
 		Log::debug('reset',['email'=>$request->email,'ret'=>$ret]);
 		//$ret=$user->notify(new ResetPassword($user));
 		
 		if ($ret == 'passwords.reset') {
-			$resp=$this->ret_user($this->user,$request,true);
-			return response()->json($resp)->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
+			return response()->json(ret_user($request,true));
 		}
 		else return response()->json(['error'=>"password reset expired or does not match email"],401);
 	}
@@ -439,12 +423,16 @@ class Controller extends BaseController
 	
 	public function mail(Request $request)
 	{
-		if ($id=json_decode(Crypt::decrypt($request->token)))
-		{
+		Log::debug('mail',['token'=>$request->token]);
+		try {
+			$tok=Crypt::decrypt($request->token);
+			$id=json_decode($tok);
 			$message=Message::find($id->id);
 			return response($message->json,200)->header('Content-Type','application/json');
+		} catch (DecryptException $e) {
+			Log::error('mail',['token'=>$request->token]);
+			return response()->json(['error'=>'Invalid mail token'],422);
 		}
-		else return response()->json(['error'=>'Invalid mail token'],422);
 	}
 	
 	public function data(Request $request)
