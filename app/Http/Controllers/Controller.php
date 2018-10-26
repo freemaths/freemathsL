@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\Contact;
 use App\Mail\ContactCopy;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Contracts\Encryption\DecryptException;
 use App\User;
 use App\Test;
 use App\Question;
@@ -112,7 +113,15 @@ class Controller extends BaseController
 	}
 	
 	public function user(Request $request) {
-		return response()->json($this->ret_user($request));
+		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
+		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
+			if ($user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
+			{
+				if ((isset($token->remember) && $token->remember) || time()-$token->time<30*60) return response()->json($this->ret_user($request));
+				else return response()->json('password'); // React will prompt for password
+			}
+		}	
+		return response()->json(null);
 	}
 	
 	public function login(Request $request)
@@ -172,7 +181,7 @@ class Controller extends BaseController
 			$user->remember_token=base64_encode(str_random(40));
 			$user->save();
 		}
-		$remember=$request->has('remember')?$request->remember:$token->remember; // to_email not stored so irrelevant
+		$remember=$request->has('remember')?$request->remember:(isset($token)&&isset($token->remember)?$token->remember:false); // to_email not stored so irrelevant
 		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(), 'remember'=>$remember]));
 		$agent=new Agent();
 		Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
@@ -201,7 +210,7 @@ class Controller extends BaseController
 		//$ret=$user->notify(new ResetPassword($user));
 		
 		if ($ret == 'passwords.reset') {
-			return response()->json(ret_user($request,true));
+			return response()->json($this->ret_user($request,true));
 		}
 		else return response()->json(['error'=>"password reset expired or does not match email"],401);
 	}

@@ -9,7 +9,7 @@ A message from {{$message->from->name}}{{$message->to->email==='ed@darnell.org.u
 @endforeach
 @endcomponent
 Use View on FreeMaths.uk to see formatted maths and reply.
-@component('mail::button', ['url'=>url("/mail/$token")])
+@component('mail::button', ['url'=>url("?mail=$token")])
 View on FreeMaths.uk
 @endcomponent
 @endcomponent

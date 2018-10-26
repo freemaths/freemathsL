@@ -87,6 +87,7 @@ $app->routeMiddleware([
 */
 $app->configure('app');
 $app->configure('mail');
+$app->alias('mailer',\Illuminate\Contracts\Mail\Mailer::class);
 $app->configure('database');
 // alias edited into Application.php: 'Illuminate\Contracts\Mail\Mailer' => 'mailer',
 // also translation to make markdown work - see
