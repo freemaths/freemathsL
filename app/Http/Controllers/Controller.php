@@ -79,8 +79,11 @@ class Controller extends BaseController
 	
 	public function users(Request $request)
 	{
-		if ($request->user()->isAdmin()) $users=User::select('id','name','email','created_at','updated_at')->get();
-		return response()->json(['users'=>$users]);
+		if ($request->user()->isAdmin()) {
+			$users=User::select('id','name','email','created_at','updated_at')->get();
+			$log=StatLog::select('user_id',DB::raw('MAX(created_at) as ts'))->groupBy('user_id')->orderBy('ts','desc')->get();
+			return response()->json(['users'=>$users,'log'=>$log]);
+		}
 	}
 	
 	public function log_event(Request $request)
@@ -133,10 +136,12 @@ class Controller extends BaseController
 		$user = User::where('email',$request->email)->first();
 		if ($user && Hash::check($request->password, $user->password))
 		{
+			StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
 			return response()->json($this->ret_user($request));//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
+			if ($user) StatLog::create(['user_id'=>$ser->id,'event'=>'End','paper'=> '','question'=>'','answer'=>'','comment'=>'wrong password','variables'=>'']);
 			Log::debug('login - unknown',['email'=>$request->email]);
 			return response()->json(['email'=>'These credentials do not match our records.'],401);
 		}
@@ -153,12 +158,16 @@ class Controller extends BaseController
 		if (($user && Hash::check($request->password, $user->password)) ||
 			($to_user && Hash::check($request->password, $to_user->password)))
 		{
-			if ($request->auth && $user) return response()->json(['auth'=>true]);
+			if ($request->auth && $user) {
+				StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
+				return response()->json(['auth'=>true]);
+			}
 			return response()->json($this->ret_user($request));//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
 			Log::debug('password - fail',['email'=>$user?$user->email:null]);
+			if ($user) StatLog::create(['user_id'=>$ser->id,'event'=>'End','paper'=> '','question'=>'','answer'=>'','comment'=>'wrong password','variables'=>'']);
 			return response()->json(['password'=>'These credentials do not match our records.'],401);
 		}
 	}
