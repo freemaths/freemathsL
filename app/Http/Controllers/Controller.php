@@ -23,6 +23,7 @@ use App\Tutor;
 use App\Message;
 use App\Log as StatLog;
 use Jenssegers\Agent\Agent;
+use LZCompressor\LZString;
 //use App\Notifications\ResetPassword;
 
 class Controller extends BaseController
@@ -82,7 +83,9 @@ class Controller extends BaseController
 		if ($request->user()->isAdmin()) {
 			$users=User::select('id','name','email','created_at','updated_at')->get();
 			$log=StatLog::select('user_id',DB::raw('MAX(created_at) as ts'))->groupBy('user_id')->orderBy('ts','desc')->get();
-			return response()->json(['users'=>$users,'log'=>$log]);
+			Log::debug("users",['str'=>"test string",'zip'=>\LZCompressor\LZString::compressToBase64("test string")]);
+			return response()->json(['users'=>\LZCompressor\LZString::compressToBase64("test string")]);		
+			//return response()->json(['users'=>\LZCompressor\LZString::compressToBase64(json_encode($users)),'log'=>\LZCompressor\LZString::compressToBase64(json_encode($log))]);
 		}
 	}
 	
