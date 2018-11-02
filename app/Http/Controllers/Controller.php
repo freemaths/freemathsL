@@ -144,7 +144,7 @@ class Controller extends BaseController
 		}
 		else
 		{
-			if ($user) StatLog::create(['user_id'=>$ser->id,'event'=>'End','paper'=> '','question'=>'','answer'=>'','comment'=>'wrong password','variables'=>'']);
+			if ($user) StatLog::create(['user_id'=>$user->id,'event'=>'End','paper'=> '','question'=>'','answer'=>'','comment'=>'wrong password','variables'=>'']);
 			Log::debug('login - unknown',['email'=>$request->email]);
 			return response()->json(['email'=>'These credentials do not match our records.'],401);
 		}
