@@ -75,7 +75,7 @@ class Controller extends BaseController
 			else $log=StatLog::whereIn('user_id',$students)->orderBy('id','asc')->get();
 		}
 		Log::debug('students',['users'=>$users]);
-		return response()->json(['log'=>$log,'users'=>$users]);
+		return response()->json(['log'=>base64_encode(gzcompress(json_encode($log))),'users'=>base64_encode(gzcompress(json_encode($users)))]);
 	}
 	
 	public function users(Request $request)
@@ -83,8 +83,8 @@ class Controller extends BaseController
 		if ($request->user()->isAdmin()) {
 			$users=User::select('id','name','email','created_at','updated_at')->get();
 			$log=StatLog::select('user_id',DB::raw('MAX(created_at) as ts'))->groupBy('user_id')->orderBy('ts','desc')->get();
-			Log::debug("users",['str'=>"test string",'zip'=>\LZCompressor\LZString::compressToBase64("test string")]);
-			return response()->json(['users'=>\LZCompressor\LZString::compressToBase64("test string")]);		
+			Log::debug("users",['str'=>"test string",'zip'=>base64_encode(gzcompress("test string"))]);
+			return response()->json(['users'=>base64_encode(gzcompress("test string"))]);		
 			//return response()->json(['users'=>\LZCompressor\LZString::compressToBase64(json_encode($users)),'log'=>\LZCompressor\LZString::compressToBase64(json_encode($log))]);
 		}
 	}
