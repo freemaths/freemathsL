@@ -484,11 +484,11 @@ class Controller extends BaseController
 	{
 		if ($request->user()->isAdmin() && $lz=$request->lz)
 		{
-			Storage::put('data.json',json_encode($request->data));
-			Storage::put('tests.lz',$lz['tests']);
-			Storage::put('books.lz',$lz['books']);
-			Storage::put('past.lz',$lz['past']);
-			Storage::put('help.lz',$lz['help']);
+			//Storage::put('data.json',json_encode($request->data));
+			Storage::put('tests.gz',$lz['tests']);
+			Storage::put('books.gz',$lz['books']);
+			Storage::put('past.gz',$lz['past']);
+			Storage::put('help.gz',$lz['help']);
 			return response()->json(['saved'=>true]);
 		}
 		else return response()->json(['error'=>'Unauthorised'],422);
