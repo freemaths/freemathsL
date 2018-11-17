@@ -166,7 +166,7 @@ class Controller extends BaseController
 		$this->validate($request, [
 				'password' => 'required'
 		]);
-		$to_user=$request->to?User::find($request->to['id']):null;
+		$to_user=$request->has('to')?User::find($request->to['id']):null;
 		$user=$this->auth($request);
 		Log::debug('password',['user'=>$user,'to'=>$request->to,'to_user'=>$to_user]);
 		if (($user && Hash::check($request->password, $user->password)) ||
