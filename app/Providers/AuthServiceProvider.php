@@ -33,20 +33,19 @@ class AuthServiceProvider extends ServiceProvider
         // the User instance via an API token or any other method necessary.
 
         $this->app['auth']->viaRequest('api', function ($request) {
-        	$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
-        	if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
-        		if ($user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
-        		{
-        			Log::debug('auth success',['user'=>$user->id]);
-        			return $user;
-        		}
-        		else {
-        			Log::debug('auth failed',['FM-Token'=>$token]);
-        			return null;
+        	$user=null;
+        	if ($FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token'))
+        	{
+        		try {
+        			$token=json_decode(Crypt::decrypt($FMtoken));
+        			$user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first();
+        		} catch (DecryptException $e) {
+        			Log::debug('auth fail- Decryption Exception');
         		}
         	}
-        	Log::debug('auth fail',['FM-Token'=>$FMtoken]);
-        	return null;
+        	if ($user) Log::debug('api auth success',['id'=>$user->id,'name'=>$user->name]);
+        	else Log::debug('api auth fail',['FM-Token'=>$FMtoken]);
+        	return $user;
         });
     }
 }

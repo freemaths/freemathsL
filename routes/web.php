@@ -18,10 +18,9 @@
 
 $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 	//$router->get('user', 'Controller@user');
-	$router->post('user', 'Controller@user');
 	$router->post('login', 'Controller@login');
 	$router->post('password', 'Controller@password');
-	$router->get('logout', 'Controller@logout');
+	//$router->get('logout', 'Controller@logout');
 	$router->post('register', 'Controller@register');
 	$router->post('forgot', 'Controller@forgot');
 	$router->post('reset', 'Controller@reset');
@@ -31,6 +30,9 @@ $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 });
 
 $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () use ($router) {
+	$router->post('user', 'Controller@user');
+	$router->post('get_file', 'Controller@get_file');
+	$router->get('logout', 'Controller@logout');
 	$router->get('data', 'Controller@data');
 	$router->get('data2', 'Controller@data');
 	$router->post('log_event', 'Controller@log_event');

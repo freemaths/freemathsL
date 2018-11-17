@@ -103,6 +103,17 @@ class Controller extends BaseController
 		return response()->json(['log'=>$log]);
 	}
 	
+	public function log(Request $request,$event) {
+		$log=$request->user()->logs()->create([
+				'event'=>$event,
+				'paper'=> '',
+				'question'=>'',
+				'answer'=>$request->topic,
+				'comment'=>'',
+				'variables'=>'']);
+		Log::debug('log',['id'=>$request->user()->id,'name'=>$request->user()->name,'event'=>$event]);
+	}
+	
 	public function help(Request $request)
 	{
 		$uid=0;
@@ -170,13 +181,14 @@ class Controller extends BaseController
 		else
 		{
 			Log::debug('password - fail',['email'=>$user?$user->email:null]);
-			if ($user) StatLog::create(['user_id'=>$ser->id,'event'=>'End','paper'=> '','question'=>'','answer'=>'','comment'=>'wrong password','variables'=>'']);
+			if ($user) StatLog::create(['user_id'=>$user->id,'event'=>'End','paper'=> '','question'=>'','answer'=>'','comment'=>'wrong password','variables'=>'']);
 			return response()->json(['password'=>'These credentials do not match our records.'],401);
 		}
 	}
 	
 	public function logout(Request $request) {
-		return response()->json('logged out')->cookie(new Cookie ('FM-Token','',0));
+		$this->log($request,'End');
+		return response()->json('logged out');
 	}
 	
 	public function ret_user($request,$reset=false)
@@ -196,8 +208,9 @@ class Controller extends BaseController
 		$remember=$request->has('remember')?$request->remember:(isset($token)&&isset($token->remember)?$token->remember:false); // to_email not stored so irrelevant
 		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(), 'remember'=>$remember]));
 		$agent=new Agent();
-		Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
-		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
+		$versions=Storage::get('public/versions.json');
+		Log::debug('ret_user',['versions'=>$versions,'id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
+		return (['versions'=>$versions,'id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
@@ -456,44 +469,30 @@ class Controller extends BaseController
 		}
 	}
 	
-	public function data(Request $request)
-	{
-		if ($request->user()->isAdmin()) {
-			$ts=DB::raw('SELECT max(t.updated_at) as t_ts,max(q.updated_at) as q_ts,max(h.updated_at) as h_ts FROM tests as t,questions as q,help as h');
-			Log::info('data',['env'=>$request->header('FM-Env')]); //,'ETag'=>$request->header('If-None-Match')]);
-			$tests=Test::orderBy('id')->get();
-			$questions=Question::where('next_id',0)->orderBy('id')->get();
-			$qmap=DB::table('question_test')->get(); // needs more work if to remain - better to enclose in tests json
-			$help = Help::where('next_id',0)->orderBy('id')->get();
-			Storage::put('tables.json',json_encode(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help]));
-			return response()->json(['tests'=>$tests,'questions'=>$questions,'qmap'=>$qmap,'help'=>$help]);
-		}
-		else return response()->json(['error'=>'Unauthorised.'],401);
-	}
-	
-	public function data2(Request $request)
-	{
-		if ($request->user()->isAdmin())
-		{
-			$data=Storage::get('data.json');
-			return response()->json(['file'=>$data]);
-		}
-	}
-	
 	public function update_data(Request $request)
 	{
-		if ($request->user()->isAdmin() && $lz=$request->lz)
+		if ($request->user()->isAdmin() && $updates=$request->updates)
 		{
 			//Storage::put('data.json',json_encode($request->data));
-			Storage::put('tests.gz',$lz['tests']);
-			Storage::put('books.gz',$lz['books']);
-			Storage::put('past.gz',$lz['past']);
-			Storage::put('help.gz',$lz['help']);
-			return response()->json(['saved'=>true]);
+			foreach (['tests','help','books','past'] as $name) {
+				if (isset($updates[$name]['zip'])) {
+					Storage::put($name.'.gz',$updates[$name]['zip']);
+					unset($updates[$name]['zip']);
+					Log::debug('updated',['name'=>$name,'version'=>$updates[$name]['version'],'size'=>$updates[$name]['size']]);
+				}
+			}
+			Storage::put('versions.json',json_encode($updates));
+			Log::debug('updated',['versions'=>$updates]);
+			return response()->json($updates);
 		}
-		else return response()->json(['error'=>'Unauthorised'],422);
+		else return response()->json(['error'=>'No updates'],422);
 	}
-	
+	public function get_file(Request $request)
+	{
+		$file=Storage::get('public/'.$request->name.'.gz');
+		Log::debug('get_file',['id'=>$request-user().id,'name'=>$request-user().name,'file'=>$request->name]);
+		return response()->json($file);
+	}
 	public function past(Request $request)
 	{
 		$t = null;
