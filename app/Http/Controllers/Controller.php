@@ -134,7 +134,7 @@ class Controller extends BaseController
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
 			if ($user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
 			{
-				if ((isset($token->remember) && $token->remember) || time()-$token->time<30*60) return response()->json($this->ret_user($request));
+				if ((isset($token->remember) && $token->remember) || time()-$token->time<10/*30*60*/) return response()->json($this->ret_user($request));
 				else return response()->json('password'); // React will prompt for password
 			}
 		}	
@@ -166,11 +166,11 @@ class Controller extends BaseController
 		$this->validate($request, [
 				'password' => 'required'
 		]);
-		$to_user=$request->has('to')?User::find($request->to['id']):null;
-		$user=$this->auth($request);
-		Log::debug('password',['user'=>$user,'to'=>$request->to,'to_user'=>$to_user]);
-		if (($user && Hash::check($request->password, $user->password)) ||
-			($to_user && Hash::check($request->password, $to_user->password)))
+		//$to_user=$request->has('to')?User::find($request->to['id']):null;
+		$user=$request->user();
+		Log::debug('password',['user'=>$user]);//,'to'=>$request->to,'to_user'=>$to_user]);
+		if (($user && Hash::check($request->password, $user->password)))// ||
+			//($to_user && Hash::check($request->password, $to_user->password)))
 		{
 			if ($request->auth && $user) {
 				StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
