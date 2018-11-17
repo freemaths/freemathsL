@@ -172,7 +172,7 @@ class Controller extends BaseController
 		if (($user && Hash::check($request->password, $user->password)))// ||
 			//($to_user && Hash::check($request->password, $to_user->password)))
 		{
-			if ($request->auth && $user) {
+			if ($request->has('auth') && $user) {
 				StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
 				return response()->json(['auth'=>true]);
 			}
