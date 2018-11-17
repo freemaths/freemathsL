@@ -134,7 +134,7 @@ class Controller extends BaseController
 		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
 			if ($user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
 			{
-				if ((isset($token->remember) && $token->remember) || time()-$token->time<10/*30*60*/) return response()->json($this->ret_user($request));
+				if ((isset($token->remember) && $token->remember) || time()-$token->time<30*60) return response()->json($this->ret_user($request));
 				else return response()->json('password'); // React will prompt for password
 			}
 		}	
