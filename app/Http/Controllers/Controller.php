@@ -117,8 +117,7 @@ class Controller extends BaseController
 	public function help(Request $request)
 	{
 		$uid=0;
-		if ($user=$this->auth($request)) $uid=$user->id;
-		
+		if ($user=$this->auth($request)) $uid=$user->id;	
 		$row=StatLog::create(['user_id'=>$uid,
 				'event'=>'Help',
 				'paper'=> '',
@@ -126,6 +125,7 @@ class Controller extends BaseController
 				'answer'=>$request->topic,
 				'comment'=>'',
 				'variables'=>'']);
+		Log::debug('help',['uid'=>$uid,'name'=>$user?$user->name:'anon','topic'=>$request->topic]);
 		return response()->json($row);
 	}
 	
@@ -257,6 +257,7 @@ class Controller extends BaseController
 			]);
 			return response()->json(['log'=>$log]);
 		}
+		else return response()->json(['error'=>"invalid marking"],401);
 	}
 	
 	public function forgot(Request $request)
