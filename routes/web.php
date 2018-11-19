@@ -20,6 +20,7 @@ $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 	//$router->get('user', 'Controller@user');
 	$router->post('login', 'Controller@login');
 	//$router->get('logout', 'Controller@logout');
+	$router->get('versions', 'Controller@versions');
 	$router->post('register', 'Controller@register');
 	$router->post('forgot', 'Controller@forgot');
 	$router->post('reset', 'Controller@reset');

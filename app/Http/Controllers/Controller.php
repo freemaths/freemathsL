@@ -64,8 +64,13 @@ class Controller extends BaseController
 		if ($request->user()->isAdmin() && $request->all)
 		{
 			$users=User::select('id','name')->get();
+			$d=strtotime("-1 Months");
+			$log=StatLog::where('created_at', '>', date('Y-m-d',$d))->orderBy('id','asc')->get();
+			/*
 			if ($request->has('last')) $log=StatLog::where('id','>',$request->last)->orderBy('id','asc')->get();
-			else $log=StatLog::orderBy('id','asc')->get();
+			else {
+				$log=StatLog::where('created_at', '>', strtotime("-1 week"))->orderBy('id','asc')->get();
+			}*/
 		}
 		else
 		{
@@ -108,7 +113,7 @@ class Controller extends BaseController
 				'event'=>$event,
 				'paper'=> '',
 				'question'=>'',
-				'answer'=>$request->topic,
+				'answer'=>$request->has('topic')?$request->topic:'',
 				'comment'=>'',
 				'variables'=>'']);
 		Log::debug('log',['id'=>$request->user()->id,'name'=>$request->user()->name,'event'=>$event]);
@@ -130,15 +135,11 @@ class Controller extends BaseController
 	}
 	
 	public function user(Request $request) {
-		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
-		if ($FMtoken && $token=json_decode(Crypt::decrypt($FMtoken))) {
-			if ($user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first())
-			{
-				if ((isset($token->remember) && $token->remember) || time()-$token->time<30*60) return response()->json($this->ret_user($request));
-				else return response()->json('password'); // React will prompt for password
-			}
-		}	
-		return response()->json(null);
+		$user=$request->user();
+		$token=json_decode(Crypt::decrypt($request->header('FM-Token')));
+		if ((isset($token->remember) && $token->remember) || time()-$token->time<30*60) 
+			return response()->json(['user'=>$this->ret_user($request),'versions'=>Storage::get('public/versions.json')]);
+		else return response()->json(['user'=>'password','versions'=>Storage::get('public/versions.json')]); // React will prompt for password
 	}
 	
 	public function login(Request $request)
@@ -151,7 +152,7 @@ class Controller extends BaseController
 		if ($user && Hash::check($request->password, $user->password))
 		{
 			StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
-			return response()->json($this->ret_user($request));//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
+			return response()->json(['user'=>$this->ret_user($request),'versions'=>Storage::get('public/versions.json')]);//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
@@ -176,7 +177,7 @@ class Controller extends BaseController
 				StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
 				return response()->json(['auth'=>true]);
 			}
-			return response()->json($this->ret_user($request));//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
+			return response()->json(['user'=>$this->ret_user($request),'versions'=>Storage::get('public/versions.json')]);//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
@@ -191,26 +192,32 @@ class Controller extends BaseController
 		return response()->json('logged out');
 	}
 	
+	public function versions(Request $request) {
+		$versions=Storage::get('public/versions.json');
+		Log::debug('versions',['versions'=>$versions]);
+		return response()->json(['versions'=>$versions]);		
+	}
+	
 	public function ret_user($request,$reset=false)
 	{
 		// to_user email needs more thought - test user at client?
-		$user=null;
-		$FMtoken=$request->header('FM-Token')=='null'?null:$request->header('FM-Token');
-		if ($FMtoken) $token=json_decode(Crypt::decrypt($FMtoken));
-		if ($request->has('to_user')) $user=User::find($request->to_user);
-		else if ($request->has('email')) $user=User::where(['email'=>$request->email])->first();
-		else if ($token) $user=User::where(['id'=>$token->id,'remember_token'=>$token->token])->first();
+		$user=$request->user();
+		if (!$user && $request->has('email')) $user=User::where(['email'=>$request->email])->first();
 		$lastLogId=$request->has('lastLogId')?$request->lastLogId:0;
 		if (!$user->remember_token || $reset) {
 			$user->remember_token=base64_encode(str_random(40));
 			$user->save();
 		}
-		$remember=$request->has('remember')?$request->remember:(isset($token)&&isset($token->remember)?$token->remember:false); // to_email not stored so irrelevant
-		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(), 'remember'=>$remember]));
+		$remember=false;
+		if ($request->has('remember')) $remember=$request->remember;
+		else if ($request->header('FM-Token') && $request->header('FM-Token')!=='null') { // laravel null bug
+			$token=json_decode(Crypt::decrypt($request->header('FM-Token')));
+			$remember=isset($token->remember)?$token->remember:false;
+		}
+		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'remember'=>$remember]));
 		$agent=new Agent();
-		$versions=Storage::get('public/versions.json');
-		Log::debug('ret_user',['versions'=>$versions,'id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
-		return (['versions'=>$versions,'id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
+		Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
+		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
@@ -235,7 +242,7 @@ class Controller extends BaseController
 		//$ret=$user->notify(new ResetPassword($user));
 		
 		if ($ret == 'passwords.reset') {
-			return response()->json($this->ret_user($request,true));
+			return response()->json(['user'=>$this->ret_user($request,true),'versions'=>Storage::get('public/versions.json')]);
 		}
 		else return response()->json(['error'=>"password reset expired or does not match email"],401);
 	}
