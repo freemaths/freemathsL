@@ -57,6 +57,12 @@ class Controller extends BaseController
 		return null;
 	}
 	
+	
+	public function photo(Request $request) {
+		$photo=$request->has('photo');
+		return response()->json(['photo'=>strlen($request->photo),'type'=>$request->type]);
+	}
+	
 	public function students(Request $request)
 	{
 		$log=[];

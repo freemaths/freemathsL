@@ -33,6 +33,7 @@ $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () us
 	$router->post('password', 'Controller@password');
 	$router->post('user', 'Controller@user');
 	$router->post('get_file', 'Controller@get_file');
+	$router->post('photo', 'Controller@photo');
 	$router->get('logout', 'Controller@logout');
 	$router->get('data', 'Controller@data');
 	$router->get('data2', 'Controller@data');
