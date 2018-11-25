@@ -18,6 +18,11 @@
       "type": "image/png"
     }
   ],
+  "permissions": {
+    "video-capture": {
+      "description": "Required to take photos of working"
+    }
+  },
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#000000",
