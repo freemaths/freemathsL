@@ -21,6 +21,7 @@ use App\Question;
 use App\Help;
 use App\Tutor;
 use App\Message;
+use App\Photo;
 use App\Log as StatLog;
 use Jenssegers\Agent\Agent;
 use LZCompressor\LZString;
@@ -59,8 +60,23 @@ class Controller extends BaseController
 	
 	
 	public function photo(Request $request) {
-		$photo=$request->has('photo');
-		return response()->json(['photo'=>strlen($request->photo),'type'=>$request->type]);
+		Log::debug("log",['uid'=>$request->user()->id,'photo'=>$request->has('photo')]);
+		if ($request->has('photo')) {
+			$photo=$request->user()->photos()->create(['json'=>json_encode($request->photo)]);
+			$log=$log=$request->user()->logs()->create([
+				'event'=>'Photo',
+				'paper'=>'',
+				'question'=>'',
+				'answer'=>$photo->id,
+				'comment'=>@$request->photo['comment'],
+				'variables'=>''
+			]);
+			return response()->json(['log'=>$log]);
+		}
+		else if ($request->has('photoId')) {
+			$photo=Photo::find($request->photoId);
+			return response()->json(['photo'=>$photo]);
+		}
 	}
 	
 	public function students(Request $request)
@@ -123,6 +139,23 @@ class Controller extends BaseController
 				'comment'=>'',
 				'variables'=>'']);
 		Log::debug('log',['id'=>$request->user()->id,'name'=>$request->user()->name,'event'=>$event]);
+	}
+	
+	public function logMail(Request $request,$token,$to) {
+		$user=$request->user();
+		if (!$user && isset($to['id'])) $user=User::find($to['id']);
+		if (isset($user->id)) {
+			$log=$user->logs()->create([
+					'event'=>'Email',
+					'paper'=> '',
+					'question'=>'',
+					'answer'=>$token,
+					'comment'=>'',
+					'variables'=>'']);
+			Log::debug('logMail',['id'=>$user->id,'name'=>$user->name,'messageId'=>$token]);
+		}
+		else $log=null;
+		return $log;
 	}
 	
 	public function help(Request $request)
@@ -460,13 +493,14 @@ class Controller extends BaseController
 			else $message->from_uid=0;
 		}
 		$from=$user?['name'=>$user->name,'email'=>$user->email,'id'=>$user->id]:['name'=>$request->name,'email'=>$request->email];
-		$message->json=json_encode(['to'=>$to,'from'=>$from,'message'=>$request->message,'qkey'=>$request->qkey,'maths'=>$request->maths,'ts'=>time()]);
+		$message->json=json_encode(['to'=>$to,'from'=>$from,'message'=>$request->message,'qkey'=>$request->qkey,'maths'=>$request->maths,'ts'=>time(),'photo'=>isset($request->photo)?$request->photo:null]);
 		$message->save();
 		$token=Crypt::encrypt(json_encode(['id'=>$message->id]));
 		if (isset($to['id']) && $to['id']==1) Mail::to('epdarnell@gmail.com')->send(new Contact($message->json,$token,$request->question));
 		else Mail::to($to['email'])->send(new Contact($message->json,$token,$request->question));
 		//Mail::to('epdarnell@gmail.com')->send(new Contact('Freemaths',$user?"$user->name <$user->email>":"$request->name <$request->email>",$request->message,$token,$request->header('FM-Env')));
-		return response()->json(['sent'=>$token]);
+		$log=$this->logMail($request,$token,$to);
+		return response()->json(['token'=>$token,'log'=>$log]);
 	}
 	
 	public function mail(Request $request)
@@ -476,7 +510,8 @@ class Controller extends BaseController
 			$tok=Crypt::decrypt($request->token);
 			$id=json_decode($tok);
 			$message=Message::find($id->id);
-			return response($message->json,200)->header('Content-Type','application/json');
+			$log=$this->logMail($request,$request->token,$message->to);
+			return response()->json(['message'=>$message->json,'log'=>$log]);
 		} catch (DecryptException $e) {
 			Log::error('mail',['token'=>$request->token]);
 			return response()->json(['error'=>'Invalid mail token'],422);
@@ -504,7 +539,7 @@ class Controller extends BaseController
 	public function get_file(Request $request)
 	{
 		$file=Storage::get('public/'.$request->name.'.gz');
-		Log::debug('get_file',['id'=>$request-user().id,'name'=>$request-user().name,'file'=>$request->name]);
+		Log::debug('get_file',['id'=>$request->user()->id,'name'=>$request->user()->name,'file'=>$request->name]);
 		return response()->json($file);
 	}
 	public function past(Request $request)

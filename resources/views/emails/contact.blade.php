@@ -8,6 +8,9 @@ A message from {{$message->from->name}}{{$message->to->email==='ed@darnell.org.u
 {{$line}}<br>
 @endforeach
 @endcomponent
+@if (isset($message->photo))
+Message includes photo.
+@endif
 Use View on FreeMaths.uk to see formatted maths and reply.
 @component('mail::button', ['url'=>url("?mail=$token")])
 View on FreeMaths.uk
