@@ -493,7 +493,7 @@ class Controller extends BaseController
 			else $message->from_uid=0;
 		}
 		$from=$user?['name'=>$user->name,'email'=>$user->email,'id'=>$user->id]:['name'=>$request->name,'email'=>$request->email];
-		$message->json=json_encode(['to'=>$to,'from'=>$from,'message'=>$request->message,'qkey'=>$request->qkey,'maths'=>$request->maths,'ts'=>time(),'photo'=>isset($request->photo)?$request->photo:null]);
+		$message->json=json_encode(['to'=>$to,'from'=>$from,'message'=>$request->message,'qkey'=>$request->qkey,'maths'=>$request->maths,'ts'=>time(),'photo'=>$request->has('photo')?$request->photo:null]);
 		$message->save();
 		$token=Crypt::encrypt(json_encode(['id'=>$message->id]));
 		if (isset($to['id']) && $to['id']==1) Mail::to('epdarnell@gmail.com')->send(new Contact($message->json,$token,$request->question));
