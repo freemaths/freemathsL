@@ -517,7 +517,22 @@ class Controller extends BaseController
 			return response()->json(['error'=>'Invalid mail token'],422);
 		}
 	}
-	
+	public function save(Request $request)
+	{
+		if ($request->user()->isAdmin() && $request->has('data'))
+		{
+			//Storage::put('data.json',json_encode($request->data));
+			foreach (['tests','help','books','past'] as $name) {
+				if (isset($request->data[$name])) {
+					$gz=$request->data[$name];
+					Storage::put($name.'.gz',$gz);
+					Log::debug('saved',['name'=>$name]);
+				}
+			}
+			return response()->json("done");
+		}
+		else return response()->json(['error'=>'No updates'],422);
+	}
 	public function update_data(Request $request)
 	{
 		if ($request->user()->isAdmin() && $updates=$request->updates)
