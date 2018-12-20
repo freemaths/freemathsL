@@ -44,6 +44,7 @@ $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () us
 	$router->post('marking', 'Controller@marking');
 	$router->post('tutor', 'Controller@tutor');
 	$router->post('update', 'Controller@update');
+	$router->post('challenge', 'Controller@challenge');
 	$router->post('save', 'Controller@save');
 	$router->post('update_data', 'Controller@update_data');
 	$router->post('past', 'Controller@past');

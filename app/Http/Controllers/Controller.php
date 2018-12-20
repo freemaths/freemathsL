@@ -58,6 +58,17 @@ class Controller extends BaseController
 		return null;
 	}
 	
+	public function challenge(Request $request) {
+		$ids=[];
+		Log::debug("challenge",['uid'=>$request->user()->id,'challenges'=>$request->has('challenges')?$request->challenges:null]);
+		if ($request->has('challenges')) {
+			foreach ($request->challenges as $uid=>$qs) {
+				$id=DB::table('challenges')->insertGetId(['user_id'=>$uid, 'json' => json_encode($qs)]);
+				$ids[]=$id;
+			}
+		}
+		return response()->json(['ids'=>$ids]);
+	}
 	
 	public function photo(Request $request) {
 		Log::debug("log",['uid'=>$request->user()->id,'photo'=>$request->has('photo')]);
