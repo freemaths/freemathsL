@@ -266,8 +266,9 @@ class Controller extends BaseController
 		}
 		$token = Crypt::encrypt(json_encode(['id'=>$user->id,'token'=>$user->remember_token,'time'=>time(),'remember'=>$remember]));
 		$agent=new Agent();
-		Log::debug('ret_user',['id'=>$user->id,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
-		return (['id'=>$user->id,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
+		$challenges=DB::table('challenges')->where(['user_id'=>$user->id])->get();
+		Log::debug('ret_user',['id'=>$user->id,'challenges'=>$challenges,'email'=>$user->email,'remember'=>$remember,'remember_token'=>$user->remember_token]);
+		return (['id'=>$user->id,'challenges'=>$challenges,'name'=>$user->name,'email'=>$user->email,'log'=>$user->log($lastLogId),'isAdmin'=>$user->isAdmin(),'isMobile'=>$agent->isMobile(),'isios'=>$agent->isios(),'tutors'=>$user->tutor_details(),'isTutor'=>$user->isTutor(),'token'=>$token]);
 	}
 	
 	private function set_password($user,$password)
