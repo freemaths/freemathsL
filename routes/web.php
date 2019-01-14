@@ -27,12 +27,12 @@ $router->group(['prefix' => 'react_ajax'], function () use ($router) {
 	$router->post('contact', 'Controller@contact');
 	$router->post('mail', 'Controller@mail');
 	$router->post('help', 'Controller@help');
+	$router->post('get_file', 'Controller@get_file');
 });
 
 $router->group(['middleware' => 'auth','prefix' => 'react_ajax'], function () use ($router) {
 	$router->post('password', 'Controller@password');
 	$router->post('user', 'Controller@user');
-	$router->post('get_file', 'Controller@get_file');
 	$router->post('photo', 'Controller@photo');
 	$router->get('logout', 'Controller@logout');
 	$router->get('data', 'Controller@data');

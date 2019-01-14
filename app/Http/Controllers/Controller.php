@@ -188,8 +188,8 @@ class Controller extends BaseController
 		$user=$request->user();
 		$token=json_decode(Crypt::decrypt($request->header('FM-Token')));
 		if ((isset($token->remember) && $token->remember) || time()-$token->time<30*60) 
-			return response()->json(['user'=>$this->ret_user($request),'versions'=>Storage::get('public/versions.json')]);
-		else return response()->json(['user'=>'password','versions'=>Storage::get('public/versions.json')]); // React will prompt for password
+			return response()->json(['user'=>$this->ret_user($request),'versions'=>$this->file_versions()]);
+		else return response()->json(['user'=>'password','versions'=>$this->file_versions()]); // React will prompt for password
 	}
 	
 	public function login(Request $request)
@@ -202,7 +202,7 @@ class Controller extends BaseController
 		if ($user && Hash::check($request->password, $user->password))
 		{
 			StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
-			return response()->json(['user'=>$this->ret_user($request),'versions'=>Storage::get('public/versions.json')]);//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
+			return response()->json(['user'=>$this->ret_user($request),'versions'=>$this->file_versions()]);//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
@@ -227,7 +227,7 @@ class Controller extends BaseController
 				StatLog::create(['user_id'=>$user->id,'event'=>'Start','paper'=> '','question'=>'','answer'=>'','comment'=>'','variables'=>'']);
 				return response()->json(['auth'=>true]);
 			}
-			return response()->json(['user'=>$this->ret_user($request),'versions'=>Storage::get('public/versions.json')]);//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
+			return response()->json(['user'=>$this->ret_user($request),'versions'=>$this->file_versions()]);//->cookie(new Cookie ('FM-Token',$resp['token'],'+30 days'));
 		}
 		else
 		{
@@ -243,9 +243,25 @@ class Controller extends BaseController
 	}
 	
 	public function versions(Request $request) {
-		$versions=Storage::get('public/versions.json');
+		$versions=$this->file_versions();
 		Log::debug('versions',['versions'=>$versions]);
 		return response()->json(['versions'=>$versions]);		
+	}
+
+	private function file_versions() {
+		$updated=false;
+		$versions=json_decode(Storage::get('public/versions.json'),true);
+		foreach (['tests','help','books','past'] as $name) {
+			$ts=Storage::lastModified('public/'.$name.'.gz');
+			if (!isset($versions[$name]['ts']) || $ts>$versions[$name]['ts']) {
+				$versions[$name]['ts']=$ts;
+				$versions[$name]['size']=Storage::size('public/'.$name.'.gz');
+				Log::debug('updated',['name'=>$name,'ts'=>$versions[$name]['ts'],'size'=>$versions[$name]['size']]);
+				$updated=true;
+			}
+		}
+		if ($updated) Storage::put('public/versions.json',json_encode($versions));
+		return $versions;
 	}
 	
 	public function ret_user($request,$reset=false)
@@ -537,11 +553,11 @@ class Controller extends BaseController
 			foreach (['tests','help','books','past'] as $name) {
 				if (isset($request->data[$name])) {
 					$gz=$request->data[$name];
-					Storage::put($name.'.gz',$gz);
+					Storage::put('public/'.$name.'.gz',$gz);
 					Log::debug('saved',['name'=>$name]);
 				}
 			}
-			return response()->json("done");
+			return response()->json(['versions'=>$this->file_versions()]);
 		}
 		else return response()->json(['error'=>'No updates'],422);
 	}
@@ -565,9 +581,17 @@ class Controller extends BaseController
 	}
 	public function get_file(Request $request)
 	{
-		$file=Storage::get('public/'.$request->name.'.gz');
-		Log::debug('get_file',['id'=>$request->user()->id,'name'=>$request->user()->name,'file'=>$request->name]);
-		return response()->json($file);
+		$ts=Storage::lastModified('public/'.$request->name.'.gz');
+		if (!$request->has('ts') || $request->ts < $ts)
+		{
+			$file=Storage::get('public/'.$request->name.'.gz');
+			Log::debug('get_file',['id'=>$request->user()->id,'name'=>$request->user()->name,'file'=>$request->name]);
+			return response()->json(['ts'=>$ts,'file'=>$file]);
+		}
+		else {
+			Log::debug('get_file',['id'=>$request->user()->id,'name'=>$request->user()->name,'file'=>$request->name]);
+			return response()->json(['ts'=>$ts]);
+		}
 	}
 	public function past(Request $request)
 	{
