@@ -585,11 +585,11 @@ class Controller extends BaseController
 		if (!$request->has('ts') || $request->ts < $ts)
 		{
 			$file=Storage::get('public/'.$request->name.'.gz');
-			Log::debug('get_file',['id'=>$request->user()->id,'name'=>$request->user()->name,'file'=>$request->name]);
+			Log::debug('get_file',['file'=>$request->name]);
 			return response()->json(['ts'=>$ts,'file'=>$file]);
 		}
 		else {
-			Log::debug('get_file',['id'=>$request->user()->id,'name'=>$request->user()->name,'file'=>$request->name]);
+			Log::debug('get_file unchanged',['file'=>$request->name]);
 			return response()->json(['ts'=>$ts]);
 		}
 	}
