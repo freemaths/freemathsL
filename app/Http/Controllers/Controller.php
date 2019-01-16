@@ -250,17 +250,11 @@ class Controller extends BaseController
 
 	private function file_versions() {
 		$updated=false;
-		$versions=json_decode(Storage::get('public/versions.json'),true);
+		$versions=json_decode(Storage::get('public/version.json'),true);
 		foreach (['tests','help','books','past'] as $name) {
-			$ts=Storage::lastModified('public/'.$name.'.gz');
-			if (!isset($versions[$name]['ts']) || $ts>$versions[$name]['ts']) {
-				$versions[$name]['ts']=$ts;
-				$versions[$name]['size']=Storage::size('public/'.$name.'.gz');
-				Log::debug('updated',['name'=>$name,'ts'=>$versions[$name]['ts'],'size'=>$versions[$name]['size']]);
-				$updated=true;
-			}
+			$versions[$name]['ts']=Storage::lastModified('public/'.$name.'.gz');
+			$versions[$name]['size']=Storage::size('public/'.$name.'.gz');
 		}
-		if ($updated) Storage::put('public/versions.json',json_encode($versions));
 		return $versions;
 	}
 	
