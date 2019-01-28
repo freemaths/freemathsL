@@ -251,7 +251,7 @@ class Controller extends BaseController
 	private function file_versions() {
 		$updated=false;
 		$versions=json_decode(Storage::get('public/version.json'),true);
-		foreach (['tests','help','books','past'] as $name) {
+		foreach (['tests','questions','help','books','past'] as $name) {
 			$versions[$name]['ts']=Storage::lastModified('public/'.$name.'.gz');
 			$versions[$name]['size']=Storage::size('public/'.$name.'.gz');
 		}
